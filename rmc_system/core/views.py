@@ -1,4 +1,5 @@
 from rest_framework import viewsets
+from rest_framework import permissions
 from .models import *
 from .serializers import *
 from .services.pricing import compute_quotation
@@ -8,6 +9,7 @@ from rest_framework.response import Response
 from django.db import transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import generics
+from rest_framework import permissions
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -24,6 +26,7 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
+    authentication_classes = []  
     
 class MixDesignViewSet(viewsets.ModelViewSet):
     queryset = MixDesign.objects.all()
@@ -42,9 +45,58 @@ class OrderViewSet(viewsets.ModelViewSet):
         # Customers only see their own orders
         return Order.objects.filter(user=user)
 
+    # def perform_create(self, serializer):
+    #     # Automatically assign the logged-in customer to the order
+    #     serializer.save(user=self.request.user, status="Pending")
+
+    class IsAdminUserRole(permissions.BasePermission):
+        """
+        Custom permission to only allow users with the 'admin' role.
+        """
+        def has_permission(self, request, view):
+            return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
+
+    # Apply it to your ViewSet
+    class OrderViewSet(viewsets.ModelViewSet):
+        def get_permissions(self):
+            # If the action is creating an order, allow any authenticated user (Customer)
+            if self.action == 'create':
+                return [permissions.IsAuthenticated()]
+            
+            # For everything else (listing orders, sending quotes, etc.), require ADMIN role
+            return [IsAdminUserRole()]
+
     def perform_create(self, serializer):
-        # Automatically assign the logged-in customer to the order
-        serializer.save(user=self.request.user, status="Pending")
+    # Just call save(). Let the Serializer's create() handle the user logic.
+        serializer.save()
+
+    @action(detail=True, methods=['post'])
+    def send_quotation(self, request, pk=None):
+        order = self.get_object()
+        
+        # 1. Check if distance is set
+        if not order.distance_km or order.distance_km <= 0:
+            return Response({"error": "Please set a valid distance (km) before sending a quotation."}, status=400)
+
+        # 2. Calculate the math using our service
+        total_price, detail_breakdown = compute_quotation(order)
+
+        # 3. Create or update the Quotation record
+        Quotation.objects.update_or_create(
+            order=order,
+            defaults={
+                'computed_total': total_price,
+                'final_total': total_price,
+                'breakdown': detail_breakdown,
+                'status': 'Sent'
+            }
+        )
+
+        # 4. Advance the order status
+        order.status = "Quotation Sent"
+        order.save()
+
+        return Response({"message": "Quotation generated and sent to client!"})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def generate_quotation(self, request, pk=None):
@@ -78,6 +130,16 @@ class OrderViewSet(viewsets.ModelViewSet):
             "total": total,
             "breakdown": breakdown
         })
+    
+    @action(detail=True, methods=['post'])
+    def approve_quotation(self, request, pk=None):
+        order = self.get_object()
+        if order.status != "Quotation Sent":
+            return Response({"error": "No pending quotation to approve."}, status=400)
+        
+        order.status = "Approved" # Or "Awaiting Payment"
+        order.save()
+        return Response({"message": "Quotation approved! Please proceed to payment."})
     
 # core/views.py
 def perform_create(self, serializer):

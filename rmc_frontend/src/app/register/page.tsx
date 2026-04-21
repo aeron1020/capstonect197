@@ -95,8 +95,8 @@ export default function Register() {
     password: '',
     first_name: '',
     last_name: '',
-    company_name: '',    // Added
-    contact_number: ''   // Added
+    company_name: '',   
+    contact_number: ''   
   });
   const router = useRouter();
 

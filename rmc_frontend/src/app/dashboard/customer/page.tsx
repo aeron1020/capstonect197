@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/src/lib/api';
+import Link from 'next/dist/client/link';
+import { Eye } from 'lucide-react';
 
 interface Order {
   id: number;
@@ -100,30 +102,43 @@ export default function CustomerDashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold">
-                  <tr>
+                <tr>
                     <th className="p-4">Project</th>
                     <th className="p-4">Volume</th>
                     <th className="p-4">Schedule</th>
                     <th className="p-4">Status</th>
-                  </tr>
+                    <th className="p-4 text-right">Action</th> {/* Add this */}
+                </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {orders.map((order) => (
+                {orders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="p-4 font-semibold text-gray-800">{order.project_name}</td>
-                      <td className="p-4 text-gray-600">{order.volume_m3} m³</td>
-                      <td className="p-4 text-gray-600">{new Date(order.proposed_schedule).toLocaleDateString()}</td>
-                      <td className="p-4">
+                    <td className="p-4 font-semibold text-gray-800">{order.project_name}</td>
+                    <td className="p-4 text-gray-600">{order.volume_m3} m³</td>
+                    <td className="p-4 text-gray-600">
+                        {new Date(order.proposed_schedule).toLocaleDateString()}
+                    </td>
+                    <td className="p-4">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                          order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 
-                          order.status === 'Quotation Generated' ? 'bg-blue-100 text-blue-700' : 
-                          'bg-green-100 text-green-700'
+                        order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 
+                        order.status === 'Quotation Sent' ? 'bg-blue-100 text-blue-700' : 
+                        'bg-green-100 text-green-700'
                         }`}>
-                          {order.status}
+                        {order.status}
                         </span>
-                      </td>
+                    </td>
+                    {/* ADD THE LINK HERE */}
+                    <td className="p-4 text-right">
+                        <Link 
+                        href={`/dashboard/customer/orders/${order.id}`}
+                        className="inline-flex items-center gap-2 bg-gray-100 hover:bg-[#064e3b] hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-700"
+                        >
+                        <Eye className="w-3.5 h-3.5" />
+                        View Details
+                        </Link>
+                    </td>
                     </tr>
-                  ))}
+                ))}
                 </tbody>
               </table>
             </div>

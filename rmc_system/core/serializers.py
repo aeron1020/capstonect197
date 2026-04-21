@@ -3,6 +3,8 @@ from .models import *
 from django.db import transaction
 from .models import Customer
 from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 User = get_user_model()
 
@@ -43,40 +45,69 @@ class RegisterSerializer(serializers.ModelSerializer):
             
         # Now when this returns, DRF only looks for username/email/etc. on the user object.
         return user
+    
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # Add the user data to the response
+        data['user'] = {
+            'username': self.user.username,
+            'role': self.user.role,
+            'first_name': self.user.first_name,
+            'last_name': self.user.last_name,
+        }
+        return data
+
+class MyTokenObtainPairView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
 
 class MixDesignSerializer(serializers.ModelSerializer):
     class Meta:
         model = MixDesign
         fields = '__all__'
 
-class OrderDesignSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OrderDesign
-        fields = ['mix_design', 'volume']
-
-class OrderSerializer(serializers.ModelSerializer):
-    designs = OrderDesignSerializer(many=True)
-
-    class Meta:
-        model = Order
-        fields = '__all__'
-        read_only_fields = ['user']
-
-    def create(self, validated_data):
-        designs_data = validated_data.pop('designs')
-        user = self.context['request'].user
-
-        order = Order.objects.create(user=user, **validated_data)
-
-        for d in designs_data:
-            OrderDesign.objects.create(order=order, **d)
-
-        return order
-    
 class QuotationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quotation
         fields = '__all__'
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    mix_design_name = serializers.ReadOnlyField(source='mix_design.design_name')
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'mix_design', 'mix_design_name', 'volume']
+
+class OrderSerializer(serializers.ModelSerializer):
+    order_items = OrderItemSerializer(many=True)
+    quotation = QuotationSerializer(read_only=True)
+
+    class Meta:
+        model = Order
+        fields = '__all__'
+        read_only_fields = ['user', 'status', 'company_name', 'company_address', 'contact_person']
+
+    
+    def create(self, validated_data):
+        items_data = validated_data.pop('order_items')
+        
+        # Remove 'user' from validated_data if it exists to prevent the collision
+        validated_data.pop('user', None) 
+        
+        user = self.context['request'].user
+        profile = getattr(user, 'customer_profile', None)
+
+        with transaction.atomic():
+            order = Order.objects.create(
+                user=user,
+                company_name=profile.company_name if profile else "N/A",
+                contact_person=profile.contact_person if profile else user.get_full_name(),
+                **validated_data
+            )
+            for item_data in items_data:
+                OrderItem.objects.create(order=order, **item_data)
+        return order
+
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
