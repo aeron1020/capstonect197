@@ -2,6 +2,9 @@
 import { useEffect, useState, use } from 'react'; 
 import api from '@/src/lib/api';
 import { Calculator, CheckCircle, Truck } from 'lucide-react';
+import QuotationEditor from './QuotationEditor'; 
+
+
 
 export default function AdminOrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params); 
@@ -55,131 +58,68 @@ export default function AdminOrderDetail({ params }: { params: Promise<{ id: str
 
   if (!order) return <div className="p-10 text-center">Loading Project...</div>;
 
-  return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      {/* HEADER SECTION */}
-      <div className="bg-[#1a1a1a] text-white p-8 rounded-2xl flex justify-between items-center shadow-xl">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter">{order.project_name}</h1>
-          <p className="text-cyan-400 font-mono text-sm tracking-widest">{order.project_type} PROJECT</p>
+ return (
+    <div className="max-w-7xl mx-auto p-6 space-y-6 bg-[#f9fafb] min-h-screen">
+      {/* HEADER SECTION - Minimalist Dark */}
+      <div className="bg-[#111827] text-white p-10 rounded-3xl flex justify-between items-end shadow-2xl relative overflow-hidden">
+        <div className="relative z-10">
+          <p className="text-cyan-400 font-bold text-xs uppercase tracking-[0.3em] mb-2">Project Overview</p>
+          <h1 className="text-4xl font-black uppercase tracking-tighter">{order.project_name}</h1>
+          <div className="flex gap-4 mt-4">
+             <span className="text-xs font-bold px-3 py-1 bg-white/10 rounded-full border border-white/10 uppercase">{order.project_type}</span>
+             <span className="text-xs font-bold px-3 py-1 bg-cyan-500/20 text-cyan-400 rounded-full border border-cyan-500/20 uppercase">{order.status}</span>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-500 uppercase font-bold">Current Status</p>
-          <span className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-full text-xs font-bold border border-yellow-500/30">
-            {order.status}
-          </span>
+        <div className="text-right relative z-10">
+           <p className="text-[10px] text-gray-500 font-black uppercase">Location</p>
+           <p className="text-sm font-medium text-gray-300">{order.project_location}</p>
         </div>
+        {/* Subtle decorative circle */}
+        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* LEFT: Project Details & Items */}
-        <div className="md:col-span-2 space-y-6">
-          <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase mb-4 tracking-[0.2em]">Requested Mix Designs</h3>
-            <div className="space-y-3">
-              {order.order_items?.map((item: any) => (
-                <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border-l-4 border-[#064e3b]">
-                  <span className="font-bold text-gray-700">{item.mix_design_name}</span>
-                  <span className="text-lg font-black text-gray-900">{item.volume} m³</span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* MAIN STAGE: 8 Columns for bigger visibility */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* THE QUOTATION EDITOR (The logic handles switching between Details and Preview) */}
+          <QuotationEditor 
+            order={order} 
+            onUpdate={() => api.get(`orders/${orderId}/`).then(res => setOrder(res.data))} 
+          />
+          
+          {/* Site Info - Secondary */}
+          <section className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest">Order Requirements</h3>
+            <div className="grid grid-cols-2 gap-4">
+               {order.order_items?.map((item: any) => (
+                 <div key={item.id} className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">{item.mix_design_name}</p>
+                    <p className="text-xl font-black text-gray-900">{item.volume} m³</p>
+                 </div>
+               ))}
+            </div>
+          </section>
+        </div>
+
+        {/* SIDEBAR: 4 Columns for Adjustments */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* We'll move the input fields into a clean "Adjustment Card" inside QuotationEditor 
+              or pass them as children. For this fix, let's keep QuotationEditor as the controller. */}
+          <div className="sticky top-6">
+             {/* If Quotation Sent, show status card */}
+             {order.status === "Quotation Sent" && (
+                <div className="bg-emerald-500 text-white p-6 rounded-3xl shadow-lg shadow-emerald-500/20 mb-6">
+                   <div className="flex items-center gap-3 mb-2">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-black uppercase text-xs tracking-widest">Live Quote</span>
+                   </div>
+                   <p className="text-xs opacity-90 leading-relaxed">The client can now view and approve this quotation from their portal.</p>
                 </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-             <h3 className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-[0.2em]">Site Information</h3>
-             <p className="text-gray-800 font-medium">{order.project_location}</p>
-          </section>
-        </div>
-
-        {/* RIGHT: Admin Actions (Distance & Pricing) */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="bg-[#064e3b] text-white p-6 rounded-2xl shadow-lg space-y-6">
-            <h3 className="flex items-center text-sm font-bold border-b border-white/10 pb-4">
-              <Truck className="w-4 h-4 mr-2" /> Quotation Adjustments
-            </h3>
-            
-            <div className="space-y-4">
-              {/* 1. DISTANCE */}
-              <div>
-                <label className="text-[10px] uppercase opacity-60 font-bold">Travel Distance (KM)</label>
-                <input 
-                  type="number" 
-                  value={distance} 
-                  onChange={(e) => setDistance(e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono"
-                  placeholder="0.00"
-                />
-              </div>
-
-              {/* 2. PUMP RENTAL */}
-              <div>
-                <label className="text-[10px] uppercase opacity-60 font-bold text-cyan-300">Pump Rental Fee (₱)</label>
-                <input 
-                  type="number" 
-                  value={pumpRental} 
-                  onChange={(e) => setPumpRental(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono text-cyan-300"
-                />
-              </div>
-
-              {/* 2.5 PUMP MOBILIZATION */}
-              <div>
-                <label className="text-[10px] uppercase opacity-60 font-bold text-cyan-200">Pump Mobilization (₱)</label>
-                <input 
-                  type="number" 
-                  value={pumpMobilization} 
-                  onChange={(e) => setPumpMobilization(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono text-cyan-200"
-                  placeholder="0.00"
-                />
-              </div>
-
-              {/* 3. DISCOUNT */}
-              <div>
-                <label className="text-[10px] uppercase opacity-60 font-bold text-orange-400">Apply Discount (₱)</label>
-                <input 
-                  type="number" 
-                  value={discount} 
-                  onChange={(e) => setDiscount(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono text-orange-400"
-                />
-              </div>
-
-              {/* 4. PAYMENT TERMS */}
-              <div>
-                <label className="text-[10px] uppercase opacity-60 font-bold">Payment Terms</label>
-                <select 
-                  value={paymentTerms} 
-                  onChange={(e) => setPaymentTerms(e.target.value)}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all text-xs font-bold"
-                >
-                  <option className="text-black">Cash on Delivery</option>
-                  <option className="text-black">7 Days Term</option>
-                  <option className="text-black">15 Days Term</option>
-                  <option className="text-black">Bank Transfer (Pre-pour)</option>
-                </select>
-              </div>
-
-              {/* ACTION BUTTON */}
-              <button 
-                onClick={handleSendQuote}
-                disabled={loading || !distance}
-                className="w-full bg-cyan-400 text-[#064e3b] py-4 rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center shadow-lg hover:bg-cyan-300 disabled:bg-gray-600 disabled:text-gray-400 transition-all mt-4"
-              >
-                <Calculator className="w-4 h-4 mr-2" />
-                {loading ? "Calculating..." : "Update & Send Quote"}
-              </button>
-            </div>
+             )}
           </div>
-
-          {order.status === "Quotation Sent" && (
-            <div className="bg-green-50 border border-green-200 p-4 rounded-xl flex items-center text-green-700">
-               <CheckCircle className="w-5 h-5 mr-2" />
-               <span className="text-xs font-bold uppercase">Quotation is live for client review</span>
-            </div>
-          )}
         </div>
+
       </div>
     </div>
   );

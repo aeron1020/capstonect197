@@ -176,6 +176,14 @@ class MixDesign(models.Model):
 
 class Order(models.Model):
     PROJECT_TYPE_CHOICES = [('Commercial', 'Commercial'), ('Government', 'Government')]
+
+    # NEW: Standardize your payment terms for the logic to work
+    PAYMENT_TERM_CHOICES = [
+        ('COD', 'Cash on Delivery'),
+        ('Terms', 'Credit Terms'),
+        ('Advance', 'Full Advance Payment'),
+        ('DP', 'Percentage Downpayment'),
+    ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     
@@ -204,25 +212,55 @@ class OrderItem(models.Model):
     mix_design = models.ForeignKey(MixDesign, on_delete=models.PROTECT) 
     volume = models.DecimalField(max_digits=10, decimal_places=2)
 
+# class Quotation(models.Model):
+#     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name="quotation")
+#     computed_total = models.DecimalField(max_digits=12, decimal_places=2)
+#     final_total = models.DecimalField(max_digits=12, decimal_places=2)
+#     breakdown = models.JSONField(null=True, blank=True) 
+#     status = models.CharField(max_length=20, default="Pending")
+
 class Quotation(models.Model):
     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name="quotation")
     computed_total = models.DecimalField(max_digits=12, decimal_places=2)
     final_total = models.DecimalField(max_digits=12, decimal_places=2)
-    breakdown = models.JSONField(null=True, blank=True) # Stores the math from pricing.py
+    breakdown = models.JSONField(null=True, blank=True) 
     status = models.CharField(max_length=20, default="Pending")
+    # Recommended addition for audit trail:
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Quote for {self.order.project_name} - ₱{self.final_total}"
+    
 
 class Payment(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
     proof_file = models.ImageField(upload_to="payments/")
     status = models.CharField(max_length=20, default="Pending")
 
-class Inspection(models.Model):
-    order = models.OneToOneField(Order, on_delete=models.CASCADE)
-    access_ok = models.BooleanField(default=False)
-    ground_ok = models.BooleanField(default=False)
-    formwork_ok = models.BooleanField(default=False)
-    remarks = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=20)
+class SiteInspection(models.Model):
+    RESULT_CHOICES = [
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+        ('Re-inspection', 'For Re-inspection'),
+    ]
+
+    order = models.OneToOneField(
+        Order, 
+        on_delete=models.CASCADE, 
+        related_name='site_visit_report' 
+    )
+    inspector = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True
+    )
+    result = models.CharField(max_length=20, choices=RESULT_CHOICES)
+    remarks = models.TextField()
+    inspected_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Inspection for Order #{self.order.id} - {self.result}"
 
 class Schedule(models.Model):
     order = models.OneToOneField(Order, on_delete=models.CASCADE)

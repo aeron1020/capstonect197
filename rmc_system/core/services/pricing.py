@@ -163,58 +163,75 @@
 
 from decimal import Decimal
 
+
 def compute_quotation(order, pump_rental=0, pump_mobilization=0, discount=0, payment_terms="Cash on Delivery"):
     BASE_RADIUS_KM = 15
-    EXCESS_KM_RATE = 10 # This is now treated as "Pesos per Cubic per Excess KM"
-    CEMENT_SURCHARGE = 250
+    EXCESS_KM_RATE = 10 
     
     total = Decimal('0.00')
     items_breakdown = {} 
     
-    # 1. Calculate the Distance Surcharge per Cubic Meter
+    # 1. Capture and clean inputs
     dist = Decimal(str(order.distance_km or 0))
-    distance_surcharge_per_m3 = Decimal('0.00')
+    # Ensure project_type is a string and handle casing
+    project_type = str(order.project_type or "").strip()
     
+    # 2. Base Delivery Calculation (Excess KM)
+    distance_surcharge_per_m3 = Decimal('0.00')
     if dist > BASE_RADIUS_KM:
-        # Example: 20km - 15km = 5 excess km. 5km * 10 pesos = 50 pesos extra per m3.
-        distance_surcharge_per_m3 = (dist - BASE_RADIUS_KM) * Decimal(str(EXCESS_KM_RATE))
+        # e.g., 20km - 15km = 5 excess km. 5km * 10 pesos = 50 pesos extra per m3.
+        distance_surcharge_per_m3 = (dist - Decimal(str(BASE_RADIUS_KM))) * Decimal(str(EXCESS_KM_RATE))
 
-    # 2. Calculate Concrete Items
+    # 3. SPECIAL SURCHARGE LOGIC (The Core Rule)
+    special_surcharge = Decimal('0.00')
+    
+    if project_type == "Government":
+        # Rule: All Government projects get base 250
+        special_surcharge += Decimal('250.00')
+        # Rule: If Gov AND distance > 30, add ANOTHER 250 (Total 500)
+        if dist > 30:
+            special_surcharge += Decimal('250.00')
+            
+    elif project_type == "Commercial":
+        # Rule: Commercial only gets 250 if distance > 30
+        if dist > 30:
+            special_surcharge += Decimal('250.00')
+
+    # 4. Calculate Final Unit Price per Mix Design
     for item in order.order_items.all():
         base_unit_price = Decimal(str(item.mix_design.price_per_cubic))
         
-        # Add the distance surcharge and government surcharge (if any) to the unit price
-        gov_fee = Decimal(str(CEMENT_SURCHARGE)) if order.project_type == "Government" else Decimal('0.00')
+        # Total Unit Price = Base Price + Delivery Surcharge + Special (Gov/Commercial) Surcharge
+        final_unit_price = base_unit_price + distance_surcharge_per_m3 + special_surcharge
         
-        # NEW FINAL UNIT PRICE (Base + Distance Surcharge + Gov Fee)
-        final_unit_price = base_unit_price + distance_surcharge_per_m3 + gov_fee
-        
-        item_subtotal = final_unit_price * item.volume
+        item_subtotal = final_unit_price * Decimal(str(item.volume))
         total += item_subtotal
         
         items_breakdown[item.mix_design.design_name] = {
-            "unit_price": float(final_unit_price), # This now includes the delivery cost
+            "unit_price": float(final_unit_price),
             "volume": float(item.volume),
-            "subtotal": float(item_subtotal)
+            "subtotal": float(item_subtotal),
+            "surcharge_applied": float(special_surcharge)
         }
 
-    # 3. Add Extra Equipment Charges
+    # 5. Add Equipment & Adjustments
     p_rental = Decimal(str(pump_rental))
     p_mob = Decimal(str(pump_mobilization))
     disc = Decimal(str(discount))
 
-    # Total = (Concrete with distance included) + Pump - Discount
+    # Grand Total Math
     total = total + p_rental + p_mob - disc
 
-    # 4. Final structure (Delivery Fee is now 0 as it's built into the items)
+    # 6. Final Data Structure
     final_breakdown = {
         "items": items_breakdown,
-        "delivery_fee": 0.00, 
+        "delivery_fee": 0.00, # Built into unit_price now
         "pump_rental": float(p_rental),
         "pump_mobilization": float(p_mob),
         "discount": float(disc),
         "payment_terms": payment_terms,
-        "total_amount": float(total)
+        "total_amount": float(total),
+        "special_surcharge_per_m3": float(special_surcharge) 
     }
 
     return total, final_breakdown

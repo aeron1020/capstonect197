@@ -78,37 +78,33 @@ class OrderViewSet(viewsets.ModelViewSet):
         except AttributeError:
             serializer.save(user=self.request.user, status="Pending")
 
+
     @action(detail=True, methods=['post'])
     def send_quotation(self, request, pk=None):
         """
         Consolidated single action to handle distance, pump, discount, and terms.
+        Saves a snapshot of the math for audit purposes.
         """
         order = self.get_object()
         
         try:
-            # 1. Capture data from the React QuotationEditor
-            # Ensure we treat these as numbers immediately to avoid TypeErrors
-            distance = request.data.get('distance_km', order.distance_km)
-            p_rental = request.data.get('pump_rental', 0)
-            p_mob = request.data.get('pump_mobilization', 0)
-            disc = request.data.get('discount', 0)
+            # 1. Capture data and force numeric types
+            # Using 0 as default if the key is missing or empty
+            distance = request.data.get('distance_km', order.distance_km) or 0
+            p_rental = request.data.get('pump_rental', 0) or 0
+            p_mob = request.data.get('pump_mobilization', 0) or 0
+            disc = request.data.get('discount', 0) or 0
             terms = request.data.get('payment_terms', "Cash on Delivery")
 
-            # 2. Update distance on the order
+            # 2. Update distance on the order (The Admin's verified distance)
             order.distance_km = distance
             order.save()
 
-            # 3. Validation: Convert to float before comparing to 0
-            # This fixes the "TypeError: '<=' not supported between instances of 'str' and 'int'"
-            try:
-                dist_val = float(order.distance_km)
-            except (ValueError, TypeError):
-                dist_val = 0
+            # 3. Validation
+            if float(distance) <= 0:
+                return Response({"error": "A valid distance (km) is required to calculate integrated delivery rates."}, status=400)
 
-            if dist_val <= 0:
-                return Response({"error": "Please set a valid distance (km) before sending a quotation."}, status=400)
-
-            # 4. Calculation
+            # 4. Calculation (This generates the static JSON breakdown)
             total_price, breakdown = compute_quotation(
                 order, 
                 pump_rental=p_rental, 
@@ -119,24 +115,67 @@ class OrderViewSet(viewsets.ModelViewSet):
 
             # 5. Atomic database update
             with transaction.atomic():
+                # This stores the "Live Copy" for the Admin and Customer
                 Quotation.objects.update_or_create(
                     order=order,
                     defaults={
                         'computed_total': total_price,
                         'final_total': total_price,
                         'breakdown': breakdown,
-                        'status': 'Pending'
+                        'status': 'Sent' # Changed to 'Sent' for better tracking
                     }
                 )
+                
+                # Update Order Status
                 order.status = "Quotation Sent"
                 order.save()
 
-            return Response({"status": "success", "total": float(total_price)})
+            return Response({
+                "status": "success", 
+                "total": float(total_price),
+                "message": f"Quotation for Order #{order.id} has been recorded and sent."
+            })
 
         except Exception as e:
+            # Log the full error for the Admin/Developer to see in the terminal
             import traceback
             print(traceback.format_exc())
-            return Response({"error": str(e)}, status=500)
+            return Response({"error": f"Internal Server Error: {str(e)}"}, status=500)
+
+    @action(detail=True, methods=['post'])
+    def preview_quotation(self, request, pk=None):
+        order = self.get_object()
+        
+        # 1. Capture the new distance from the form
+        # We don't save it to the DB, we just hold it in this variable
+        distance = request.data.get('distance_km', order.distance_km) or 0
+        
+        # 2. TEMPORARILY update the order object in memory 
+        # This ensures compute_quotation uses the NEW distance for the math
+        order.distance_km = float(distance)
+
+        # 3. Capture other inputs
+        p_rental = request.data.get('pump_rental', 0) or 0
+        p_mob = request.data.get('pump_mobilization', 0) or 0
+        disc = request.data.get('discount', 0) or 0
+        terms = request.data.get('payment_terms', "Cash on Delivery")
+
+        # 4. Calculate using the modified order object
+        total, breakdown = compute_quotation(
+            order, 
+            pump_rental=p_rental, 
+            pump_mobilization=p_mob, 
+            discount=disc, 
+            payment_terms=terms
+        )
+
+        # 5. Return the response matching your React keys
+        return Response({
+            "preview_breakdown": {
+                "items": breakdown.get('items'),
+                "final_total": float(total), 
+            }
+        })
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def approve_quotation(self, request, pk=None):
@@ -161,6 +200,96 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
+
+    # @action(detail=True, methods=['post'])
+    # def submit_inspection(self, request, pk=None):
+    #     order = self.get_object()
+    #     result = request.data.get('result')  # Approved, Rejected, or Re-inspection
+    #     remarks = request.data.get('remarks')
+
+    #     if not result or not remarks:
+    #         return Response({"error": "Please provide both result and remarks."}, status=400)
+
+    #     with transaction.atomic():
+    #         # Create or update the report
+    #         # Note: Using site_inspection_record as the related_name we fixed earlier
+    #         SiteInspection.objects.update_or_create(
+    #             order=order,
+    #             defaults={
+    #                 'inspector': request.user,
+    #                 'result': result,
+    #                 'remarks': remarks
+    #             }
+    #         )
+
+    #         # SIMPLE PROCESS LOGIC:
+    #         if result == 'Approved':
+    #             order.status = 'Ready for Pouring'
+    #         elif result == 'Rejected':
+    #             order.status = 'Inspection Rejected'
+    #         elif result == 'Re-inspection':
+    #             order.status = 'For Re-inspection'
+            
+    #         order.save()
+
+    #     return Response({
+    #         "message": f"Site {result} successfully.",
+    #         "new_status": order.status
+    #     })
+
+    @action(detail=True, methods=['post'])
+    def schedule_inspection(self, request, pk=None):
+        order = self.get_object()
+        date = request.data.get('inspection_date')
+        if not date:
+            return Response({"error": "Inspection date is required"}, status=400)
+        
+        order.inspection_date = date
+        order.status = "For Inspection"
+        order.save()
+        return Response({"message": f"Inspection scheduled for {date}"})
+
+    @action(detail=True, methods=['post'])
+    def submit_inspection(self, request, pk=None):
+        order = self.get_object()
+        result = request.data.get('result') 
+        remarks = request.data.get('remarks')
+
+        if not result or not remarks:
+            return Response({"error": "Please provide both result and remarks."}, status=400)
+
+        with transaction.atomic():
+            SiteInspection.objects.update_or_create(
+                order=order,
+                defaults={
+                    'inspector': request.user,
+                    'result': result,
+                    'remarks': remarks
+                }
+            )
+
+            if result == 'Approved':
+                # LOGIC: COD or Terms move straight to Pouring
+                # Advance or DP move to Verification
+                if order.payment_term in ['COD', 'Terms']:
+                    order.status = 'Ready for Pouring'
+                else:
+                    order.status = 'For Payment Verification'
+            
+            elif result == 'Rejected':
+                order.status = 'Inspection Rejected'
+            elif result == 'Re-inspection':
+                order.status = 'For Re-inspection'
+            
+            order.save()
+
+        return Response({
+            "message": f"Site {result} successfully.",
+            "new_status": order.status
+        })
+
+        
+    
 class QuotationViewSet(viewsets.ModelViewSet):
     queryset = Quotation.objects.all()
     serializer_class = QuotationSerializer
@@ -190,3 +319,24 @@ class QuotationViewSet(viewsets.ModelViewSet):
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUserRole])
+    def verify_payment(self, request, pk=None):
+        payment = self.get_object()
+        order = payment.order
+        decision = request.data.get('decision') # 'approve' or 'reject'
+
+        if decision == 'approve':
+            with transaction.atomic():
+                payment.status = 'Verified'
+                payment.save()
+                
+                order.payment_status = 'Paid'
+                order.status = 'Ready for Pouring'
+                order.save()
+            return Response({"message": "Payment verified. Order is now Ready for Pouring."})
+        
+        else:
+            payment.status = 'Rejected'
+            payment.save()
+            return Response({"message": "Payment rejected. Customer must re-upload."})
