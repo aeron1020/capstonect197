@@ -2,15 +2,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/src/lib/api';
-import Link from 'next/dist/client/link';
+import Link from 'next/link'; // Standardized import
 import { Eye } from 'lucide-react';
+
+interface OrderItem {
+  volume: string | number;
+}
 
 interface Order {
   id: number;
   project_name: string;
   status: string;
   proposed_schedule: string;
-  volume_m3: string;
+  order_items: OrderItem[]; // Added this to track volumes
 }
 
 interface UserProfile {
@@ -53,6 +57,7 @@ export default function CustomerDashboard() {
   // Statistics Calculation
   const activeOrders = orders.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled').length;
   const pendingQuotes = orders.filter(o => o.status === 'Pending' || o.status === 'For Quotation').length;
+  const completedOrders = orders.filter(o => o.status === 'Completed').length;
 
   if (isLoading) return <div className="p-10 text-center font-sans">Loading AERON RMC Dashboard...</div>;
 
@@ -90,7 +95,7 @@ export default function CustomerDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard title="Active Orders" value={activeOrders.toString()} color="border-l-[#064e3b]" />
           <StatCard title="Pending Quotations" value={pendingQuotes.toString()} color="border-l-[#d4af37]" />
-          <StatCard title="Completed" value="0" color="border-l-blue-500" />
+          <StatCard title="Completed" value={completedOrders.toString()} color="border-l-blue-500" />
         </div>
 
         {/* Orders Table */}
@@ -104,41 +109,52 @@ export default function CustomerDashboard() {
                 <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-bold">
                 <tr>
                     <th className="p-4">Project</th>
-                    <th className="p-4">Volume</th>
+                    <th className="p-4">Total Volume</th>
                     <th className="p-4">Schedule</th>
                     <th className="p-4">Status</th>
-                    <th className="p-4 text-right">Action</th> {/* Add this */}
+                    <th className="p-4 text-right">Action</th>
                 </tr>
                 </thead>
-                <tbody className="divide-y">
-                {orders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 font-semibold text-gray-800">{order.project_name}</td>
-                    <td className="p-4 text-gray-600">{order.volume_m3} m³</td>
-                    <td className="p-4 text-gray-600">
-                        {new Date(order.proposed_schedule).toLocaleDateString()}
-                    </td>
-                    <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 
-                        order.status === 'Quotation Sent' ? 'bg-blue-100 text-blue-700' : 
-                        'bg-green-100 text-green-700'
-                        }`}>
-                        {order.status}
-                        </span>
-                    </td>
-                    {/* ADD THE LINK HERE */}
-                    <td className="p-4 text-right">
-                        <Link 
-                        href={`/dashboard/customer/orders/${order.id}`}
-                        className="inline-flex items-center gap-2 bg-gray-100 hover:bg-[#064e3b] hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-gray-700"
-                        >
-                        <Eye className="w-3.5 h-3.5" />
-                        View Details
-                        </Link>
-                    </td>
-                    </tr>
-                ))}
+                <tbody className="divide-y text-gray-700">
+                {orders.map((order) => {
+                    // CALCULATE VOLUME SUM FOR THIS ROW
+                    const totalVol = order.order_items?.reduce(
+                      (acc, item) => acc + Number(item.volume), 0
+                    ) || 0;
+
+                    return (
+                      <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="p-4 font-semibold text-gray-800">{order.project_name}</td>
+                        {/* FIX: Showing the calculated sum */}
+                        <td className="p-4 font-mono">{totalVol.toFixed(2)} m³</td>
+                        <td className="p-4">
+                            {new Date(order.proposed_schedule).toLocaleDateString('en-PH', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                            })}
+                        </td>
+                        <td className="p-4">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                            order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 
+                            order.status === 'Quotation Sent' ? 'bg-blue-100 text-blue-700' : 
+                            'bg-green-100 text-green-700'
+                            }`}>
+                            {order.status}
+                            </span>
+                        </td>
+                        <td className="p-4 text-right">
+                            <Link 
+                            href={`/dashboard/customer/orders/${order.id}`}
+                            className="inline-flex items-center gap-2 bg-gray-100 hover:bg-[#064e3b] hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                            >
+                            <Eye className="w-3.5 h-3.5" />
+                            View
+                            </Link>
+                        </td>
+                      </tr>
+                    )
+                })}
                 </tbody>
               </table>
             </div>

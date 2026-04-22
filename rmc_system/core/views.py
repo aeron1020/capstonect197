@@ -1,236 +1,191 @@
-from rest_framework import viewsets
-from rest_framework import permissions
+from rest_framework import viewsets, permissions, status, generics
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.response import Response
+from django.db import transaction
 from .models import *
 from .serializers import *
 from .services.pricing import compute_quotation
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated, IsAuthenticatedOrReadOnly
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.db import transaction
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework import generics
-from rest_framework import permissions
+
+# --- AUTH & PROFILE ---
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([permissions.IsAuthenticated])
 def get_user_profile(request):
     user = request.user
     return Response({
         'id': user.id,
         'username': user.username,
-        'role': user.role, # Assuming 'role' is a field in your AbstractUser
+        'role': user.role, 
         'full_name': f"{user.first_name} {user.last_name}"
     })
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
-    permission_classes = (AllowAny,)
+    permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
-    authentication_classes = []  
-    
+    authentication_classes = []
+
+# --- CUSTOM PERMISSIONS ---
+
+class IsAdminUserRole(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
+
+# --- VIEWSETS ---
+
 class MixDesignViewSet(viewsets.ModelViewSet):
     queryset = MixDesign.objects.all()
     serializer_class = MixDesignSerializer
 
 class OrderViewSet(viewsets.ModelViewSet):
-    # Remove the static queryset line
     serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-        # Admins and Dispatchers see all orders
         if user.is_staff or user.role in ['admin', 'dispatcher']:
             return Order.objects.all()
-        # Customers only see their own orders
         return Order.objects.filter(user=user)
 
-    # def perform_create(self, serializer):
-    #     # Automatically assign the logged-in customer to the order
-    #     serializer.save(user=self.request.user, status="Pending")
+    def get_permissions(self):
+        # 1. Allow any logged-in user to Create or View (List/Retrieve)
+        if self.action in ['create', 'list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        
+        # 2. Allow Customers to decide on their own quotation
+        if self.action == 'approve_quotation':
+            return [permissions.IsAuthenticated()]
 
-    class IsAdminUserRole(permissions.BasePermission):
-        """
-        Custom permission to only allow users with the 'admin' role.
-        """
-        def has_permission(self, request, view):
-            return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
+        # 3. Everything else (send_quotation, update, delete) requires ADMIN
+        return [IsAdminUserRole()]
 
-    # Apply it to your ViewSet
-    class OrderViewSet(viewsets.ModelViewSet):
-        def get_permissions(self):
-            # If the action is creating an order, allow any authenticated user (Customer)
-            if self.action == 'create':
-                return [permissions.IsAuthenticated()]
-            
-            # For everything else (listing orders, sending quotes, etc.), require ADMIN role
-            return [IsAdminUserRole()]
+        # Allow customers to see and approve
+        if self.action in ['create', 'list', 'retrieve', 'approve_quotation']:
+            return [permissions.IsAuthenticated()]
+        
+        # Everything else (sending/editing) is Admin only
+        return [IsAdminUserRole()]
 
     def perform_create(self, serializer):
-    # Just call save(). Let the Serializer's create() handle the user logic.
-        serializer.save()
+        # Safely fetch customer profile to auto-fill company info
+        try:
+            customer = self.request.user.customer
+            serializer.save(
+                user=self.request.user,
+                company_name=customer.company_name,
+                contact_person=f"{self.request.user.first_name} {self.request.user.last_name}",
+                status="Pending"
+            )
+        except AttributeError:
+            serializer.save(user=self.request.user, status="Pending")
 
     @action(detail=True, methods=['post'])
     def send_quotation(self, request, pk=None):
+        """
+        Consolidated single action to handle distance, pump, discount, and terms.
+        """
         order = self.get_object()
         
-        # 1. Check if distance is set
-        if not order.distance_km or order.distance_km <= 0:
-            return Response({"error": "Please set a valid distance (km) before sending a quotation."}, status=400)
+        try:
+            # 1. Capture data from the React QuotationEditor
+            # Ensure we treat these as numbers immediately to avoid TypeErrors
+            distance = request.data.get('distance_km', order.distance_km)
+            p_rental = request.data.get('pump_rental', 0)
+            p_mob = request.data.get('pump_mobilization', 0)
+            disc = request.data.get('discount', 0)
+            terms = request.data.get('payment_terms', "Cash on Delivery")
 
-        # 2. Calculate the math using our service
-        total_price, detail_breakdown = compute_quotation(order)
-
-        # 3. Create or update the Quotation record
-        Quotation.objects.update_or_create(
-            order=order,
-            defaults={
-                'computed_total': total_price,
-                'final_total': total_price,
-                'breakdown': detail_breakdown,
-                'status': 'Sent'
-            }
-        )
-
-        # 4. Advance the order status
-        order.status = "Quotation Sent"
-        order.save()
-
-        return Response({"message": "Quotation generated and sent to client!"})
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
-    def generate_quotation(self, request, pk=None):
-        order = self.get_object()
-
-        if order.status not in ["Pending", "For Quotation"]:
-            return Response({"error": "Invalid order status"}, status=400)
-
-        if not order.distance_km: # Check for None or 0
-            return Response({"error": "Distance is required for computation"}, status=400)
-
-        with transaction.atomic():
-            total, breakdown = compute_quotation(order)
-            
-            # Using update_or_create is safer if the admin re-runs the quotation
-            quotation, created = Quotation.objects.update_or_create(
-                order=order,
-                defaults={
-                    'computed_total': total,
-                    'final_total': total,
-                    'status': "Pending",
-                    'breakdown': breakdown
-                }
-            )
-
-            order.status = "Quotation Generated"
+            # 2. Update distance on the order
+            order.distance_km = distance
             order.save()
 
-        return Response({
-            "message": "Quotation generated successfully",
-            "total": total,
-            "breakdown": breakdown
-        })
-    
-    @action(detail=True, methods=['post'])
+            # 3. Validation: Convert to float before comparing to 0
+            # This fixes the "TypeError: '<=' not supported between instances of 'str' and 'int'"
+            try:
+                dist_val = float(order.distance_km)
+            except (ValueError, TypeError):
+                dist_val = 0
+
+            if dist_val <= 0:
+                return Response({"error": "Please set a valid distance (km) before sending a quotation."}, status=400)
+
+            # 4. Calculation
+            total_price, breakdown = compute_quotation(
+                order, 
+                pump_rental=p_rental, 
+                pump_mobilization=p_mob, 
+                discount=disc, 
+                payment_terms=terms
+            )
+
+            # 5. Atomic database update
+            with transaction.atomic():
+                Quotation.objects.update_or_create(
+                    order=order,
+                    defaults={
+                        'computed_total': total_price,
+                        'final_total': total_price,
+                        'breakdown': breakdown,
+                        'status': 'Pending'
+                    }
+                )
+                order.status = "Quotation Sent"
+                order.save()
+
+            return Response({"status": "success", "total": float(total_price)})
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return Response({"error": str(e)}, status=500)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def approve_quotation(self, request, pk=None):
         order = self.get_object()
-        if order.status != "Quotation Sent":
-            return Response({"error": "No pending quotation to approve."}, status=400)
         
-        order.status = "Approved" # Or "Awaiting Payment"
-        order.save()
-        return Response({"message": "Quotation approved! Please proceed to payment."})
-    
-# core/views.py
-def perform_create(self, serializer):
-    # Fetch the user's customer profile
-    # (Make sure 'customer' is the related_name in your Customer model)
-    customer = self.request.user.customer 
+        # Security: Ensure only the owner can approve
+        if order.user != request.user:
+            return Response({"error": "Unauthorized"}, status=403)
 
-    serializer.save(
-        user=self.request.user,
-        company_name=customer.company_name,
-        contact_person=f"{self.request.user.first_name} {self.request.user.last_name}",
-        # You can also pull company_address if you have it in the Customer model
-        company_address="See Project Location", 
-        status="Pending"
-    )
+        try:
+            with transaction.atomic():
+                # 1. Update the Quotation status
+                quotation = order.quotation # This works if you have a OneToOneField or related_name
+                quotation.status = "Approved"
+                quotation.save()
 
-@api_view(['POST'])
-@permission_classes([IsAdminUser]) # Strictly for Admin only
-def generate_and_send_quotation(request, order_id):
-    try:
-        order = Order.objects.get(id=order_id)
-        
-        # 1. Validation: Ensure Admin has input the distance_km
-        if order.distance_km is None:
-            return Response({"error": "Please input distance (km) before generating quotation."}, status=400)
+                # 2. Update the Order status
+                order.status = "For Inspection"
+                order.save()
 
-        # 2. Calculate using pricing.py
-        total_price, detail_breakdown = compute_quotation(order)
+            return Response({"status": "Order approved, moving to inspection."})
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
 
-        # 3. Create or Update the Quotation record
-        quotation, created = Quotation.objects.update_or_create(
-            order=order,
-            defaults={
-                'computed_total': total_price,
-                'final_total': total_price,
-                'breakdown': detail_breakdown,
-                'status': 'Pending' # Client needs to approve this
-            }
-        )
-
-        # 4. Update Order Status to notify the Client
-        order.status = "Quotation Generated"
-        order.save()
-
-        return Response({
-            "message": "Quotation sent to client successfully!",
-            "total": total_price
-        })
-
-    except Order.DoesNotExist:
-        return Response({"error": "Order not found."}, status=404)
-    
 class QuotationViewSet(viewsets.ModelViewSet):
     queryset = Quotation.objects.all()
     serializer_class = QuotationSerializer
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def customer_decision(self, request, pk=None):
         quotation = self.get_object()
         order = quotation.order
-        user = request.user
-
         decision = request.data.get("decision")
 
-        # 🔒 Ensure only owner can decide
-        if order.user != user:
-            return Response({"error": "Not allowed"}, status=403)
+        if order.user != request.user:
+            return Response({"error": "Not authorized"}, status=403)
 
-        # 🔒 Validate state
-        if quotation.status != "Pending":
-            return Response({"error": "Already decided"}, status=400)
-
-        # 🔒 Validate input
-        if decision not in ["approve", "reject"]:
-            return Response({"error": "Invalid decision"}, status=400)
-
-        # 🔁 PROCESS DECISION
         if decision == "approve":
             quotation.status = "Approved"
             order.status = "For Inspection"
-
         elif decision == "reject":
             quotation.status = "Rejected"
             order.status = "Rejected"
+        else:
+            return Response({"error": "Invalid decision"}, status=400)
 
         quotation.save()
         order.save()
-
-        return Response({
-            "message": f"Quotation {decision}d successfully"
-        })
+        return Response({"message": f"Quotation {decision}d"})
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()

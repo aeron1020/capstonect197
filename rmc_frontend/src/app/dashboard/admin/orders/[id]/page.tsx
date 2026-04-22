@@ -1,44 +1,56 @@
 "use client";
-import { useEffect, useState, use } from 'react'; // 1. Add 'use' here
+import { useEffect, useState, use } from 'react'; 
 import api from '@/src/lib/api';
 import { Calculator, CheckCircle, Truck } from 'lucide-react';
 
 export default function AdminOrderDetail({ params }: { params: Promise<{ id: string }> }) {
-  // 2. Unwrap the params promise
   const resolvedParams = use(params); 
   const orderId = resolvedParams.id;
 
   const [order, setOrder] = useState<any>(null);
   const [distance, setDistance] = useState('');
+  const [pumpRental, setPumpRental] = useState(0);
+  const [pumpMobilization, setPumpMobilization] = useState(0); // Added Mobilization State
+  const [discount, setDiscount] = useState(0);
+  const [paymentTerms, setPaymentTerms] = useState("Cash on Delivery");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // 3. Use orderId instead of params.id
     if (orderId) {
       api.get(`orders/${orderId}/`)
         .then(res => {
           setOrder(res.data);
           if (res.data.distance_km) setDistance(res.data.distance_km);
+          
+          if (res.data.quotation?.breakdown) {
+            const b = res.data.quotation.breakdown;
+            setPumpRental(b.pump_rental || 0);
+            setPumpMobilization(b.pump_mobilization || 0); // Load saved mobilization
+            setDiscount(b.discount || 0);
+            setPaymentTerms(b.payment_terms || "Cash on Delivery");
+          }
         })
-        .catch(err => console.error("Could not load order:", err));
     }
   }, [orderId]);
 
-  const handleUpdateDistance = async () => {
-    try {
-      // 4. Use orderId here too
-      await api.patch(`orders/${orderId}/`, { distance_km: distance });
-      alert("Distance updated!");
-    } catch (err) { alert("Update failed"); }
-  };
-
   const handleSendQuote = async () => {
+    setLoading(true);
     try {
-      // 5. Use orderId here too
-      await api.post(`orders/${orderId}/send_quotation/`);
-      alert("Quotation sent!");
+      await api.post(`orders/${orderId}/send_quotation/`, {
+        distance_km: distance,
+        pump_rental: pumpRental,
+        pump_mobilization: pumpMobilization, // Included in payload
+        discount: discount,
+        payment_terms: paymentTerms
+      });
+      alert("Quotation generated and sent!");
       window.location.reload();
-    } catch (err) { alert("Error sending quote"); }
+    } catch (err) { 
+      console.error(err);
+      alert("Error sending quote"); 
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!order) return <div className="p-10 text-center">Loading Project...</div>;
@@ -82,40 +94,85 @@ export default function AdminOrderDetail({ params }: { params: Promise<{ id: str
 
         {/* RIGHT: Admin Actions (Distance & Pricing) */}
         <div className="md:col-span-1 space-y-6">
-          <div className="bg-[#064e3b] text-white p-6 rounded-2xl shadow-lg">
-            <h3 className="flex items-center text-sm font-bold mb-4">
-              <Truck className="w-4 h-4 mr-2" /> Logistics Verification
+          <div className="bg-[#064e3b] text-white p-6 rounded-2xl shadow-lg space-y-6">
+            <h3 className="flex items-center text-sm font-bold border-b border-white/10 pb-4">
+              <Truck className="w-4 h-4 mr-2" /> Quotation Adjustments
             </h3>
             
             <div className="space-y-4">
+              {/* 1. DISTANCE */}
               <div>
                 <label className="text-[10px] uppercase opacity-60 font-bold">Travel Distance (KM)</label>
-                <div className="flex mt-1">
-                  <input 
-                    type="number" 
-                    value={distance} 
-                    onChange={(e) => setDistance(e.target.value)}
-                    className="w-full bg-white/10 border border-white/20 rounded-l-lg p-2 outline-none focus:bg-white/20 transition-all"
-                    placeholder="0.00"
-                  />
-                  <button onClick={handleUpdateDistance} className="bg-white text-[#064e3b] px-4 rounded-r-lg font-bold text-xs uppercase">
-                    Save
-                  </button>
-                </div>
-                <p className="text-[9px] mt-2 opacity-50">*Free delivery within 15km radius.</p>
+                <input 
+                  type="number" 
+                  value={distance} 
+                  onChange={(e) => setDistance(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono"
+                  placeholder="0.00"
+                />
               </div>
 
+              {/* 2. PUMP RENTAL */}
+              <div>
+                <label className="text-[10px] uppercase opacity-60 font-bold text-cyan-300">Pump Rental Fee (₱)</label>
+                <input 
+                  type="number" 
+                  value={pumpRental} 
+                  onChange={(e) => setPumpRental(Number(e.target.value))}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono text-cyan-300"
+                />
+              </div>
+
+              {/* 2.5 PUMP MOBILIZATION */}
+              <div>
+                <label className="text-[10px] uppercase opacity-60 font-bold text-cyan-200">Pump Mobilization (₱)</label>
+                <input 
+                  type="number" 
+                  value={pumpMobilization} 
+                  onChange={(e) => setPumpMobilization(Number(e.target.value))}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono text-cyan-200"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* 3. DISCOUNT */}
+              <div>
+                <label className="text-[10px] uppercase opacity-60 font-bold text-orange-400">Apply Discount (₱)</label>
+                <input 
+                  type="number" 
+                  value={discount} 
+                  onChange={(e) => setDiscount(Number(e.target.value))}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all font-mono text-orange-400"
+                />
+              </div>
+
+              {/* 4. PAYMENT TERMS */}
+              <div>
+                <label className="text-[10px] uppercase opacity-60 font-bold">Payment Terms</label>
+                <select 
+                  value={paymentTerms} 
+                  onChange={(e) => setPaymentTerms(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg p-3 mt-1 outline-none focus:bg-white/20 transition-all text-xs font-bold"
+                >
+                  <option className="text-black">Cash on Delivery</option>
+                  <option className="text-black">7 Days Term</option>
+                  <option className="text-black">15 Days Term</option>
+                  <option className="text-black">Bank Transfer (Pre-pour)</option>
+                </select>
+              </div>
+
+              {/* ACTION BUTTON */}
               <button 
                 onClick={handleSendQuote}
-                disabled={loading || order.status !== "Pending"}
-                className="w-full bg-cyan-400 text-[#064e3b] py-4 rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center shadow-lg hover:bg-cyan-300 disabled:bg-gray-600 disabled:text-gray-400 transition-all"
+                disabled={loading || !distance}
+                className="w-full bg-cyan-400 text-[#064e3b] py-4 rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center shadow-lg hover:bg-cyan-300 disabled:bg-gray-600 disabled:text-gray-400 transition-all mt-4"
               >
                 <Calculator className="w-4 h-4 mr-2" />
-                {loading ? "Calculating..." : "Generate & Send Quote"}
+                {loading ? "Calculating..." : "Update & Send Quote"}
               </button>
             </div>
           </div>
-          
+
           {order.status === "Quotation Sent" && (
             <div className="bg-green-50 border border-green-200 p-4 rounded-xl flex items-center text-green-700">
                <CheckCircle className="w-5 h-5 mr-2" />
