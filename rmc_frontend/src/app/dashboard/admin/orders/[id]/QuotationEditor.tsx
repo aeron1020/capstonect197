@@ -217,7 +217,7 @@
 // }
 
 "use client";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '@/src/lib/api';
 import { Save, Percent, Construction, CreditCard, Truck, Eye, CheckCircle } from 'lucide-react';
 
@@ -229,6 +229,22 @@ export default function QuotationEditor({ order, onUpdate }: { order: any, onUpd
   
   // Updated default to match backend choice key
   const [paymentTerms, setPaymentTerms] = useState(order.quotation?.payment_terms || "COD"); 
+
+  useEffect(() => {
+  if (order?.payment_term) {
+    setPaymentTerms(order.payment_term);
+  } else if (order?.quotation?.payment_terms) {
+    // Fallback in case it's stored inside the quotation object
+    setPaymentTerms(order.quotation.payment_terms);
+  }
+}, [order?.payment_term, order?.quotation?.payment_terms]);
+
+const termLabels: Record<string, string> = {
+  COD: "Cash on Delivery",
+  Terms: "Credit Terms (30 Days)",
+  Advance: "Full Advance Payment",
+  DP: "Percentage Downpayment",
+};
   
   const [isSaving, setIsSaving] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
@@ -302,6 +318,7 @@ export default function QuotationEditor({ order, onUpdate }: { order: any, onUpd
               <option value="DP" className="bg-[#111827]">Downpayment (Percentage)</option>
             </select>
           </div>
+          
 
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center"><Construction className="w-3 h-3 mr-2" /> Pump Rental</label>

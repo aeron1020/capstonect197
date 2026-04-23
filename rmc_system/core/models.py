@@ -174,10 +174,9 @@ class MixDesign(models.Model):
     def __str__(self):
         return f"{self.design_name}"
 
+
 class Order(models.Model):
     PROJECT_TYPE_CHOICES = [('Commercial', 'Commercial'), ('Government', 'Government')]
-
-    # NEW: Standardize your payment terms for the logic to work
     PAYMENT_TERM_CHOICES = [
         ('COD', 'Cash on Delivery'),
         ('Terms', 'Credit Terms'),
@@ -186,24 +185,19 @@ class Order(models.Model):
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    
-    # Auto-filled from Profile during Serializer .create()
     company_name = models.CharField(max_length=255, blank=True)
     company_address = models.TextField(blank=True)
     contact_person = models.CharField(max_length=255, blank=True)
-    
-    # Project specific
     project_name = models.CharField(max_length=255)
     project_location = models.TextField()
     project_type = models.CharField(max_length=20, choices=PROJECT_TYPE_CHOICES, default='Commercial')
-    
-    # Distance is SET BY ADMIN later to trigger pricing
     distance_km = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     proposed_schedule = models.DateField()
-    
-    # Workflow Status
     status = models.CharField(max_length=50, default="Pending")
-    payment_type = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Cleaned: Combined these fields at the bottom
+    payment_term = models.CharField(max_length=20, choices=PAYMENT_TERM_CHOICES, default='COD', null=True, blank=True)
+    payment_type = models.CharField(max_length=20, null=True, blank=True) # General type if needed
     payment_status = models.CharField(max_length=20, default="Pending")
     created_at = models.DateTimeField(auto_now_add=True)
 

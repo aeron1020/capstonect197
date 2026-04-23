@@ -55,8 +55,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         if self.action == 'approve_quotation':
             return [permissions.IsAuthenticated()]
 
-        # 3. Everything else (send_quotation, update, delete) requires ADMIN
-        return [IsAdminUserRole()]
+        # # 3. Everything else (send_quotation, update, delete) requires ADMIN
+        # return [IsAdminUserRole()]
 
         # Allow customers to see and approve
         if self.action in ['create', 'list', 'retrieve', 'approve_quotation']:
@@ -79,65 +79,126 @@ class OrderViewSet(viewsets.ModelViewSet):
             serializer.save(user=self.request.user, status="Pending")
 
 
+    # @action(detail=True, methods=['post'])
+    # def send_quotation(self, request, pk=None):
+    #     """
+    #     Consolidated single action to handle distance, pump, discount, and terms.
+    #     Saves a snapshot of the math for audit purposes and updates order terms.
+    #     """
+    #     order = self.get_object()
+        
+    #     try:
+    #         # 1. Capture data and force numeric types
+    #         distance = request.data.get('distance_km', order.distance_km) or 0
+    #         p_rental = request.data.get('pump_rental', 0) or 0
+    #         p_mob = request.data.get('pump_mobilization', 0) or 0
+    #         disc = request.data.get('discount', 0) or 0
+            
+    #         # Capture Terms - Important: Ensure these match your logic (COD, Terms, Advance, DP)
+    #         terms = request.data.get('payment_terms', "COD")
+
+    #         # 2. Update distance AND payment terms on the order model
+    #         # This allows submit_inspection to see the terms later
+    #         order.distance_km = distance
+    #         order.payment_term = terms 
+    #         order.save()
+
+    #         # 3. Validation
+    #         if float(distance) <= 0:
+    #             return Response({"error": "A valid distance (km) is required to calculate integrated delivery rates."}, status=400)
+
+    #         # 4. Calculation (Logic remains unchanged)
+    #         total_price, breakdown = compute_quotation(
+    #             order, 
+    #             pump_rental=p_rental, 
+    #             pump_mobilization=p_mob, 
+    #             discount=disc, 
+    #             payment_terms=terms
+    #         )
+
+    #         # 5. Atomic database update
+    #         with transaction.atomic():
+    #             # Store the "Live Copy" for the Admin and Customer
+    #             Quotation.objects.update_or_create(
+    #                 order=order,
+    #                 defaults={
+    #                     'computed_total': total_price,
+    #                     'final_total': total_price,
+    #                     'breakdown': breakdown,
+    #                     'payment_terms': terms, # Store in quotation for the printed document
+    #                     'status': 'Sent'
+    #                 }
+    #             )
+                
+    #             # Update Order Status to move the workflow forward
+    #             order.status = "Quotation Sent"
+    #             order.save()
+
+    #         return Response({
+    #             "status": "success", 
+    #             "total": float(total_price),
+    #             "message": f"Quotation for Order #{order.id} has been recorded and sent."
+    #         })
+
+    #     except Exception as e:
+    #         import traceback
+    #         print(traceback.format_exc())
+    #         return Response({"error": f"Internal Server Error: {str(e)}"}, status=500)
+
     @action(detail=True, methods=['post'])
     def send_quotation(self, request, pk=None):
-        """
-        Consolidated single action to handle distance, pump, discount, and terms.
-        Saves a snapshot of the math for audit purposes.
-        """
         order = self.get_object()
         
         try:
-            # 1. Capture data and force numeric types
-            # Using 0 as default if the key is missing or empty
-            distance = request.data.get('distance_km', order.distance_km) or 0
-            p_rental = request.data.get('pump_rental', 0) or 0
-            p_mob = request.data.get('pump_mobilization', 0) or 0
-            disc = request.data.get('discount', 0) or 0
-            terms = request.data.get('payment_terms', "Cash on Delivery")
+            # 1. Capture inputs with safe fallbacks
+            # We use .get() and 'or' to ensure we never pass 'None' to the math function
+            distance = request.data.get('distance_km') or order.distance_km or 0
+            p_rental = request.data.get('pump_rental') or 0
+            p_mob = request.data.get('pump_mobilization') or 0
+            disc = request.data.get('discount') or 0
+            terms = request.data.get('payment_terms') or order.payment_term or "COD"
 
-            # 2. Update distance on the order (The Admin's verified distance)
-            order.distance_km = distance
-            order.save()
-
-            # 3. Validation
+            # 2. Validation
             if float(distance) <= 0:
-                return Response({"error": "A valid distance (km) is required to calculate integrated delivery rates."}, status=400)
+                return Response({"error": "A valid distance (km) is required."}, status=400)
 
-            # 4. Calculation (This generates the static JSON breakdown)
+            # 3. Calculation
+            # This function should now receive raw values, not depend on order.quotation
             total_price, breakdown = compute_quotation(
                 order, 
-                pump_rental=p_rental, 
-                pump_mobilization=p_mob, 
-                discount=disc, 
+                pump_rental=float(p_rental), 
+                pump_mobilization=float(p_mob), 
+                discount=float(disc), 
                 payment_terms=terms
             )
 
-            # 5. Atomic database update
+            # 4. Atomic database update
             with transaction.atomic():
-                # This stores the "Live Copy" for the Admin and Customer
+                # Update the Order first
+                order.distance_km = distance
+                order.payment_term = terms
+                order.status = "Quotation Sent"
+                order.save()
+
+                # Create or Update Quotation
+                # This fixes the 500 error because it doesn't "read" the quote before creating it
                 Quotation.objects.update_or_create(
                     order=order,
                     defaults={
                         'computed_total': total_price,
                         'final_total': total_price,
                         'breakdown': breakdown,
-                        'status': 'Sent' # Changed to 'Sent' for better tracking
+                        'status': 'Sent'
                     }
                 )
-                
-                # Update Order Status
-                order.status = "Quotation Sent"
-                order.save()
 
             return Response({
                 "status": "success", 
                 "total": float(total_price),
-                "message": f"Quotation for Order #{order.id} has been recorded and sent."
+                "message": f"Quotation for Order #{order.id} sent successfully."
             })
 
         except Exception as e:
-            # Log the full error for the Admin/Developer to see in the terminal
             import traceback
             print(traceback.format_exc())
             return Response({"error": f"Internal Server Error: {str(e)}"}, status=500)
@@ -252,40 +313,47 @@ class OrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def submit_inspection(self, request, pk=None):
         order = self.get_object()
-        result = request.data.get('result') 
+        result = request.data.get('result')
         remarks = request.data.get('remarks')
+        new_date = request.data.get('new_date') # Accept a new date from frontend
 
         if not result or not remarks:
             return Response({"error": "Please provide both result and remarks."}, status=400)
 
         with transaction.atomic():
+            # Update the Order Date if provided (Handling delays)
+            if new_date:
+                order.proposed_schedule = new_date
+
+            # 1. Record/Update the inspection details
             SiteInspection.objects.update_or_create(
                 order=order,
                 defaults={
                     'inspector': request.user,
                     'result': result,
-                    'remarks': remarks
+                    'remarks': remarks,
                 }
             )
 
+            # 2. State Machine Logic
             if result == 'Approved':
-                # LOGIC: COD or Terms move straight to Pouring
-                # Advance or DP move to Verification
                 if order.payment_term in ['COD', 'Terms']:
                     order.status = 'Ready for Pouring'
                 else:
                     order.status = 'For Payment Verification'
-            
             elif result == 'Rejected':
                 order.status = 'Inspection Rejected'
             elif result == 'Re-inspection':
                 order.status = 'For Re-inspection'
+                # If re-inspection is needed, the status remains "For Inspection" 
+                # logically until a new schedule is set.
             
             order.save()
 
         return Response({
             "message": f"Site {result} successfully.",
-            "new_status": order.status
+            "new_status": order.status,
+            "new_date": order.proposed_schedule
         })
 
         

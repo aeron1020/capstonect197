@@ -78,6 +78,36 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['id', 'mix_design', 'mix_design_name', 'volume']
 
+# class OrderSerializer(serializers.ModelSerializer):
+#     order_items = OrderItemSerializer(many=True)
+#     quotation = QuotationSerializer(read_only=True)
+
+#     class Meta:
+#         model = Order
+#         fields = '__all__'
+#         read_only_fields = ['user', 'status', 'company_name', 'company_address', 'contact_person']
+
+    
+#     def create(self, validated_data):
+#         items_data = validated_data.pop('order_items')
+        
+#         # Remove 'user' from validated_data if it exists to prevent the collision
+#         validated_data.pop('user', None) 
+        
+#         user = self.context['request'].user
+#         profile = getattr(user, 'customer_profile', None)
+
+#         with transaction.atomic():
+#             order = Order.objects.create(
+#                 user=user,
+#                 company_name=profile.company_name if profile else "N/A",
+#                 contact_person=profile.contact_person if profile else user.get_full_name(),
+#                 **validated_data
+#             )
+#             for item_data in items_data:
+#                 OrderItem.objects.create(order=order, **item_data)
+#         return order
+
 class OrderSerializer(serializers.ModelSerializer):
     order_items = OrderItemSerializer(many=True)
     quotation = QuotationSerializer(read_only=True)
@@ -85,16 +115,23 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = '__all__'
-        read_only_fields = ['user', 'status', 'company_name', 'company_address', 'contact_person']
+        # Add payment_term here so only the Admin action can modify it
+        read_only_fields = [
+            'user', 
+            'status', 
+            'company_name', 
+            'company_address', 
+            'contact_person',
+            'payment_term', 
+            'payment_status'
+        ]
 
-    
     def create(self, validated_data):
         items_data = validated_data.pop('order_items')
-        
-        # Remove 'user' from validated_data if it exists to prevent the collision
         validated_data.pop('user', None) 
         
         user = self.context['request'].user
+        # Note: Your model related_name is 'customer_profile'
         profile = getattr(user, 'customer_profile', None)
 
         with transaction.atomic():

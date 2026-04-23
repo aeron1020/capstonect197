@@ -27,13 +27,13 @@ class SiteInspectionInline(admin.StackedInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'project_name', 'company_name', 'status', 'created_at')
-    list_filter = ('status', 'project_type')
+    list_display = ('id', 'project_name', 'company_name', 'status', 'payment_term', 'created_at')
+    list_filter = ('status', 'payment_term', 'project_type')
     # Combined both Inlines here
     inlines = [OrderItemInline, SiteInspectionInline] 
     fields = ('user', 'company_name', 'company_address', 'contact_person', 
               'project_name', 'project_location', 'project_type', 
-              'proposed_schedule', 'distance_km', 'status')
+              'proposed_schedule', 'distance_km', 'status', 'payment_term', 'payment_status')
 
 @admin.register(MixDesign)
 class MixDesignAdmin(admin.ModelAdmin):
