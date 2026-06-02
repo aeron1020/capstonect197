@@ -220,12 +220,15 @@ class Quotation(models.Model):
     breakdown = models.JSONField(null=True, blank=True) 
     status = models.CharField(max_length=20, default="Pending")
     # Recommended addition for audit trail:
+
+    revision_number = models.IntegerField(default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Quote for {self.order.project_name} - ₱{self.final_total}"
-    
+            return f"Quote for {self.order.project_name} (Rev {self.revision_number}) - ₱{self.final_total}"
+        
 
 class Payment(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)

@@ -180,6 +180,18 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order.status = "Quotation Sent"
                 order.save()
 
+                # --- REVISION LOGIC START ---
+                # Check if a quotation already exists for this order
+                existing_quotation = Quotation.objects.filter(order=order).first()
+                
+                if existing_quotation:
+                    # If it exists, it's a revision! Bump the number up by 1
+                    new_revision = existing_quotation.revision_number + 1
+                else:
+                    # Brand new quotation issuance
+                    new_revision = 0
+                # --- REVISION LOGIC END ---
+
                 # Create or Update Quotation
                 # This fixes the 500 error because it doesn't "read" the quote before creating it
                 Quotation.objects.update_or_create(
@@ -188,13 +200,15 @@ class OrderViewSet(viewsets.ModelViewSet):
                         'computed_total': total_price,
                         'final_total': total_price,
                         'breakdown': breakdown,
-                        'status': 'Sent'
+                        'status': 'Sent',
+                        'revision_number': new_revision
                     }
                 )
 
             return Response({
                 "status": "success", 
                 "total": float(total_price),
+                "revision_number": new_revision,
                 "message": f"Quotation for Order #{order.id} sent successfully."
             })
 

@@ -327,7 +327,7 @@ export default function OrderDetails({ params }: { params: Promise<{ id: string 
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1 space-y-6">
-          <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          {/* <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <h2 className="font-black text-gray-400 text-[10px] uppercase mb-6 tracking-widest">Project Summary</h2>
             <div className="space-y-4">
               <div>
@@ -347,7 +347,7 @@ export default function OrderDetails({ params }: { params: Promise<{ id: string 
                 </p>
               </div>
             </div>
-          </section>
+          </section> */}
 
           {/* UPDATED ACTION BOX WITH REJECT BUTTON */}
           {order.status === "Quotation Sent" && (
