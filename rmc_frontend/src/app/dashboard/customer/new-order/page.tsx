@@ -306,6 +306,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/src/lib/api';
 import { PlusCircle, Trash2, ArrowLeft, Info, HelpCircle, CheckSquare } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 interface MixDesign {
   id: number;
@@ -370,7 +371,17 @@ export default function NewOrder() {
     e.preventDefault();
     if (!isFormValid) return;
     if (hasDuplicateMixes) {
-      alert("Please combine rows sharing identical Concrete Mix Designs before finalizing dispatch layout.");
+      Swal.fire({
+      title: 'DUPLICATE MIX DESIGNS DETECTED',
+      text: 'Please combine spreadsheet rows sharing identical Concrete Mix Designs into a single unified item entry before finalizing your dispatch layout.',
+      icon: 'info',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#06b6d4', // Aeron Ops Cyan
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
       return;
     }
     
@@ -388,7 +399,17 @@ export default function NewOrder() {
       await api.post('orders/', payload);
       router.push('/dashboard/customer');
     } catch (err) {
-      alert("Submission failed. Ensure your connection is stable and input criteria fields match requirements.");
+      Swal.fire({
+        title: 'SUBMISSION ERROR',
+        text: 'Submission failed. Ensure your connection is stable and input criteria fields match requirements.',
+        icon: 'error',
+        background: '#0f172a',
+        color: '#f8fafc',
+        confirmButtonColor: '#ef4444',
+        customClass: {
+          popup: 'rounded-3xl border border-slate-800 font-sans'
+        }
+      });
     } finally {
       setLoading(false);
     }
@@ -572,7 +593,7 @@ export default function NewOrder() {
               <div className="flex justify-between items-baseline pt-1">
                 <span className="text-xs text-gray-400 font-medium">Accumulated Cumulative Volume:</span>
                 <span className="font-mono text-2xl font-black text-[#d4af37]">
-                  {totalVolumeCalculated.toFixed(2)} $m^3$
+                  {totalVolumeCalculated.toFixed(2)} cu.m.
                 </span>
               </div>
             </div>

@@ -422,3 +422,63 @@ class PaymentViewSet(viewsets.ModelViewSet):
             payment.status = 'Rejected'
             payment.save()
             return Response({"message": "Payment rejected. Customer must re-upload."})
+        
+
+@api_view(['GET'])
+@permission_classes([IsAdminUserRole])
+def admin_dashboard_analytics(request):
+    """
+    Computes summary cards and active metrics safely.
+    """
+    try:
+        from django.db.models import Sum
+
+        # 1. Pipeline Counter Blocks
+        pending_quotes = Order.objects.filter(status="Pending").count()
+        pending_inspections = Order.objects.filter(status="For Inspection").count()
+        pending_payments = Order.objects.filter(status="For Payment Verification").count()
+        ready_to_pour = Order.objects.filter(status="Ready for Pouring").count()
+        
+        active_clients = Order.objects.exclude(status__in=["Delivered", "Rejected"]).values('user').distinct().count()
+
+        # 2. Defensive calculation fallback loops
+        # If your related name isn't 'items', we can compute it safely by evaluating standard Order items:
+        active_orders = Order.objects.filter(
+            status__in=["Quotation Sent", "For Inspection", "For Payment Verification", "Ready for Pouring"]
+        )
+        
+        # Safe imperative evaluation if aggregate relation paths fail
+        total_volume = 0
+        for o in active_orders:
+            # Looks through your dynamic OrderItems relation regardless of reverse query keys
+            items = getattr(o, 'items', None) or (o.orderitem_set if hasattr(o, 'orderitem_set') else None)
+            if items:
+                total_volume += sum(item.volume for item in items.all())
+
+        # 3. Financial Analytics Fallback
+        financial_pipeline = Quotation.objects.filter(
+            order__status__in=["For Inspection", "For Payment Verification", "Ready for Pouring"]
+        ).aggregate(total=Sum('final_total'))['total'] or 0
+
+        return Response({
+            "summary": {
+                "active_orders_count": Order.objects.exclude(status="Rejected").count(),
+                "active_clients": active_clients,
+                "total_volume_scheduled": float(total_volume),
+                "projected_revenue": float(financial_pipeline)
+            },
+            "queues": {
+                "Pending": pending_quotes,
+                "Quotation Sent": Order.objects.filter(status="Quotation Sent").count(),
+                "For Inspection": pending_inspections,
+                "For Payment Verification": pending_payments,
+                "Ready for Pouring": ready_to_pour,
+            }
+        })
+    except Exception as e:
+        # Fallback tracking payload so frontend NEVER crashes due to backend math errors
+        print(f"Dashboard Analytics Exception Raised: {str(e)}")
+        return Response({
+            "summary": {"active_orders_count": 0, "active_clients": 0, "total_volume_scheduled": 0, "projected_revenue": 0},
+            "queues": {"Pending": 0, "Quotation Sent": 0, "For Inspection": 0, "For Payment Verification": 0, "Ready for Pouring": 0}
+        })

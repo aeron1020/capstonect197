@@ -87,6 +87,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/src/lib/api';
+import Swal from 'sweetalert2';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -105,13 +106,33 @@ export default function Register() {
     try {
       // Note: Ensure the URL matches your backend route (e.g., /api/register/ or /api/users/register/)
       await api.post('/register/', formData); 
-      alert("Registration successful! Please log in.");
+      Swal.fire({
+      title: 'REGISTRATION SUCCESSFUL',
+      text: 'Your Aeron Ops profile account has been established. Please log in with your credentials to access your dashboard overview panel.',
+      icon: 'success',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#06b6d4', // Your signature Cyan branding
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
       router.push('/login');
     } catch (err: any) {
       // This will help you see the REAL error in the browser console
       console.error(err.response?.data); 
       const errorMsg = err.response?.data?.username ? "Username already taken." : "Registration failed. Please check all fields.";
-      alert(errorMsg);
+      Swal.fire({
+        title: 'REGISTRATION ERROR',
+        text: errorMsg,
+        icon: 'error',
+        background: '#0f172a',
+        color: '#f8fafc',
+        confirmButtonColor: '#ef4444',
+        customClass: {
+          popup: 'rounded-3xl border border-slate-800 font-sans'
+        }
+      });
     }
   };
 

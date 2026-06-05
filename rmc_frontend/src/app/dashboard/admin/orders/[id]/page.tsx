@@ -341,6 +341,7 @@ import {
   MapPin, AlertCircle, ChevronDown, ChevronUp, Info
 } from 'lucide-react';
 import QuotationEditor from './QuotationEditor'; 
+import Swal from 'sweetalert2';
 
 export default function AdminOrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params); 
@@ -369,10 +370,30 @@ export default function AdminOrderDetail({ params }: { params: Promise<{ id: str
     const res = await api.post(`payments/${paymentId}/verify_payment/`, {
       decision: decision
     });
-    alert(res.data.message);
+    Swal.fire({
+    title: 'SYSTEM UPDATE',
+    text: res.data.message || 'Operation executed successfully.',
+    icon: 'success', // Displays a clean checkmark, or change to 'info' if preferred
+    background: '#0f172a',
+    color: '#f8fafc',
+    confirmButtonColor: '#06b6d4', // Aeron Ops Signature Cyan
+    customClass: {
+      popup: 'rounded-3xl border border-slate-800 font-sans'
+    }
+  });
     fetchOrderData(); // This will move the order to "Ready for Pouring"
   } catch (err) {
-    alert("Error verifying payment.");
+    Swal.fire({
+      title: 'SYSTEM ERROR',
+      text: "Error verifying payment.",
+      icon: 'error',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#ef4444',
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
   }
 };
 
@@ -383,20 +404,50 @@ export default function AdminOrderDetail({ params }: { params: Promise<{ id: str
   };
 
   const handleSubmitInspection = async () => {
-    if (!inspectionRemarks) return alert("Please provide inspection remarks.");
-  
-  setIsSubmitting(true);
+    if (!inspectionRemarks) return Swal.fire({
+      title: 'INPUT REQUIRED',
+      text: "Please provide inspection remarks.",
+      icon: 'warning',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#06b6d4',
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
+
+    setIsSubmitting(true);
     try {
       const res = await api.post(`orders/${orderId}/submit_inspection/`, {
         result: inspectionResult,
         remarks: inspectionRemarks,
         new_date: rescheduleDate 
       });
-      alert(res.data.message);
+      Swal.fire({
+        title: 'SYSTEM UPDATE',
+        text: res.data.message || 'Operation executed successfully.',
+        icon: 'success',
+        background: '#0f172a',
+        color: '#f8fafc',
+        confirmButtonColor: '#06b6d4',
+        customClass: {
+          popup: 'rounded-3xl border border-slate-800 font-sans'
+        }
+      });
       fetchOrderData(); 
       setOpenSection("payment"); 
     } catch (err: any) {
-      alert(err.response?.data?.error || "Error saving inspection.");
+      Swal.fire({
+        title: 'SYSTEM ERROR',
+        text: err.response?.data?.error || "Error saving inspection.",
+        icon: 'error',
+        background: '#0f172a',
+        color: '#f8fafc',
+        confirmButtonColor: '#ef4444',
+        customClass: {
+          popup: 'rounded-3xl border border-slate-800 font-sans'
+        }
+      });
     } finally {
       setIsSubmitting(false);
     }

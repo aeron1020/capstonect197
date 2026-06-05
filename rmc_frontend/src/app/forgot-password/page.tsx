@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import api from '@/src/lib/api';
+import Swal from 'sweetalert2';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -13,7 +14,17 @@ export default function ForgotPassword() {
       await api.post('/password_reset/', { email });
       setSubmitted(true);
     } catch (err) {
-      alert("Something went wrong. Please try again.");
+      Swal.fire({
+      title: 'SYSTEM ERROR',
+      text: 'An unexpected operational error occurred inside the application engine. Please check your network connection or try executing the request again.',
+      icon: 'error',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#ef4444', 
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
     }
   };
 

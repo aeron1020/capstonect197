@@ -881,6 +881,7 @@
 import { useEffect, useState } from 'react';
 import api from '@/src/lib/api';
 import { Percent, Construction, CreditCard, Truck, Eye, CheckCircle, Printer } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 export default function QuotationEditor({ order, onUpdate }: { order: any, onUpdate: () => void }) {
   const [distance, setDistance] = useState(order.distance_km || 0);
@@ -917,7 +918,17 @@ export default function QuotationEditor({ order, onUpdate }: { order: any, onUpd
       setPreviewData(cleanData);
       setShowPreview(true); 
     } catch (err) {
-      alert("Error calculating preview. Check if distance is valid.");
+      Swal.fire({
+      title: 'CALCULATION ERROR',
+      text: 'Could not calculate price preview. Please verify if the delivery distance field holds a valid numeric value.',
+      icon: 'error',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#ef4444', // Red error accent
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
       console.error(err);
     }
   };
@@ -932,11 +943,33 @@ export default function QuotationEditor({ order, onUpdate }: { order: any, onUpd
         discount: discount,
         payment_terms: paymentTerms
       });
-      alert("Quotation officially recorded and sent!");
+      Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        background: '#0f172a', 
+        color: '#f8fafc',     
+      }).fire({
+        icon: 'success',
+        title: 'QUOTATION ISSUED',
+        text: 'Quotation officially recorded and sent!'
+      });
       setShowPreview(false);
       onUpdate();
     } catch (err) {
-      alert("Error saving quotation.");
+      Swal.fire({
+        title: 'SAVE ERROR',
+        text: 'Error saving quotation.',
+        icon: 'error',
+        background: '#0f172a',
+        color: '#f8fafc',
+        confirmButtonColor: '#ef4444',
+        customClass: {
+          popup: 'rounded-3xl border border-slate-800 font-sans'
+        }
+      });
     } finally {
       setIsSaving(false);
     }
@@ -958,7 +991,17 @@ export default function QuotationEditor({ order, onUpdate }: { order: any, onUpd
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("Popup blocked! Please allow popups to view and download the PDF document.");
+      Swal.fire({
+      title: 'POPUP BLOCKER DETECTED',
+      text: 'Your browser blocked the document window. Please allow popups for this site in your browser URL bar to view and download the official PDF invoice.',
+      icon: 'warning',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#f59e0b', // Amber warning color
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
       return;
     }
 

@@ -257,6 +257,7 @@ import api from '@/src/lib/api';
 import QuotationView from '@/src/components/QuotationView';
 import { CheckCircle, AlertCircle, ArrowLeft, XCircle } from 'lucide-react';
 import Link from 'next/link';
+import Swal from 'sweetalert2';
 
 export default function OrderDetails({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -281,25 +282,67 @@ export default function OrderDetails({ params }: { params: Promise<{ id: string 
   );
 
   // NEW: Handle Customer Decision (Approve or Reject)
-  const handleDecision = async (decision: 'approve' | 'reject') => {
-    const message = decision === 'approve' 
+ const handleDecision = async (decision: 'approve' | 'reject') => {
+  // 1. Sleek Modern Confirmation Prompt
+  const prompt = await Swal.fire({
+    title: decision === 'approve' ? 'CONFIRM APPROVAL' : 'CONFIRM REJECTION',
+    text: decision === 'approve' 
       ? "Are you sure you want to approve this quotation?" 
-      : "Are you sure you want to reject this quotation? This will end the transaction.";
-    
-    if (!confirm(message)) return;
-
-    try {
-      // Calling the customer_decision action we have in the backend
-      await api.post(`quotations/${order.quotation.id}/customer_decision/`, {
-        decision: decision
-      });
-      
-      alert(`Quotation ${decision === 'approve' ? 'Approved' : 'Rejected'}.`);
-      window.location.reload();
-    } catch (err) {
-      alert("Failed to process decision. Please contact technical staff.");
+      : "Are you sure you want to reject this quotation? This will end the transaction.",
+    icon: 'warning',
+    showCancelButton: true,
+    background: '#0f172a',
+    color: '#f8fafc',
+    confirmButtonColor: decision === 'approve' ? '#10b981' : '#ef4444', // Green for approve, Red for reject
+    cancelButtonColor: '#334155',
+    confirmButtonText: decision === 'approve' ? 'YES, APPROVE' : 'YES, REJECT',
+    cancelButtonText: 'CANCEL',
+    customClass: {
+      popup: 'rounded-3xl border border-slate-800 font-sans'
     }
-  };
+  });
+
+  // Guard block: if the user clicks cancel, safely drop out of the execution context
+  if (!prompt.isConfirmed) return;
+
+  // 2. Process Backend Transaction State
+  try {
+    // Calling the customer_decision action we have in the backend
+    await api.post(`quotations/${order.quotation.id}/customer_decision/`, {
+      decision: decision
+    });
+    
+    // Success Notification Modal
+    await Swal.fire({
+      title: decision === 'approve' ? 'QUOTATION APPROVED' : 'QUOTATION REJECTED',
+      text: `The commercial pricing layout has been officially marked as ${decision === 'approve' ? 'approved' : 'rejected'} inside the pipeline system database.`,
+      icon: decision === 'approve' ? 'success' : 'error',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: decision === 'approve' ? '#10b981' : '#ef4444', 
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
+
+    // Refresh state smoothly
+    window.location.reload();
+
+  } catch (err) {
+    // Failure Notification Fallback
+    Swal.fire({
+      title: 'SYSTEM ERROR',
+      text: "Failed to process decision. Please contact technical staff.",
+      icon: 'error',
+      background: '#0f172a',
+      color: '#f8fafc',
+      confirmButtonColor: '#ef4444',
+      customClass: {
+        popup: 'rounded-3xl border border-slate-800 font-sans'
+      }
+    });
+  }
+};
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -378,7 +421,7 @@ export default function OrderDetails({ params }: { params: Promise<{ id: string 
             <QuotationView 
               data={order.quotation} 
               orderData={order} 
-              showPumpDetails={needsPump} 
+              // showPumpDetails={needsPump} 
             />
           ) : (
             <div className="bg-white border-2 border-dashed border-gray-200 p-20 rounded-3xl text-center">
