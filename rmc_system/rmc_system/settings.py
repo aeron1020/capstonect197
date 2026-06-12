@@ -152,3 +152,6 @@ AUTH_USER_MODEL = 'core.User'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 15728640  # 15MB upload clearance limits
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15728640  # 15MB upload clearance limits

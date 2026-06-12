@@ -8,6 +8,7 @@ router.register('mix-designs', MixDesignViewSet, basename='mixdesign')
 router.register('orders', OrderViewSet, basename='order')
 router.register('quotations', QuotationViewSet, basename='quotation')
 router.register('payments', PaymentViewSet, basename='payment')
+router.register('schedules', ScheduleViewSet, basename='schedule')
 
 urlpatterns = [
 
