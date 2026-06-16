@@ -27,6 +27,8 @@ export default function LoginPage() {
       // 3. Redirect based on role
       if (role === 'admin' || role === 'dispatcher') {
         router.push('/dashboard/admin');
+      } else if (role === 'dispatcher') {
+        router.push('/dashboard/dispatcher');
       } else {
         router.push('/dashboard/customer');
       }

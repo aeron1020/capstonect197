@@ -303,26 +303,90 @@ class OrderSerializer(serializers.ModelSerializer):
     
     
 
+# class DispatchMixDesignSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = MixDesign
+#         fields = ['design_name']
+
+# class DispatchOrderItemSerializer(serializers.ModelSerializer):
+#     mix_design = DispatchMixDesignSerializer(read_only=True)
+    
+#     class Meta:
+#         model = OrderItem
+#         fields = ['volume', 'mix_design']
+
+# class ScheduleSerializer(serializers.ModelSerializer):
+#     # Fixed: Redundant source='id' removed
+#     id = serializers.CharField(read_only=True)
+    
+#     # Custom relational lookups
+#     order_id = serializers.IntegerField(source='order.id', read_only=True)
+#     project_name = serializers.CharField(source='order.project_name', read_only=True)
+#     project_location = serializers.CharField(source='order.project_location', read_only=True)
+    
+#     # Method fields and nested arrays
+#     date = serializers.SerializerMethodField()
+#     order_items = DispatchOrderItemSerializer(source='order.order_items', many=True, read_only=True)
+#     delivery_status = serializers.SerializerMethodField()
+
+#     class Meta:
+#         model = Schedule
+#         # Fixed: Added all custom declarations here so they actually serialize to your frontend
+#         fields = [
+#             'id', 
+#             'order', 
+#             'order_id', 
+#             'project_name', 
+#             'project_location', 
+#             'delivery_date', 
+#             'date', 
+#             'order_items', 
+#             'delivery_status'
+#         ]
+
+#     def get_date(self, obj):
+#         # Explicitly formats the date field to YYYY-MM-DD string format
+#         if obj.delivery_date:
+#             return obj.delivery_date.strftime('%Y-%m-%d')
+#         return None
+
+#     def get_delivery_status(self, obj):
+#         try:
+#             return obj.order.delivery.status
+#         except AttributeError:
+#             return "Pending Dispatch"
+
 class DispatchMixDesignSerializer(serializers.ModelSerializer):
     class Meta:
         model = MixDesign
-        fields = ['design_name']
+        fields = ['design_name'] # Kept strictly as requested
 
 class DispatchOrderItemSerializer(serializers.ModelSerializer):
     mix_design = DispatchMixDesignSerializer(read_only=True)
+    # 🟢 Formatted string generated directly inside the order item layer
+    mix_design_spec = serializers.SerializerMethodField()
     
     class Meta:
         model = OrderItem
-        fields = ['volume', 'mix_design']
+        fields = ['volume', 'mix_design', 'mix_design_spec']
+
+    def get_mix_design_spec(self, obj):
+        if obj.mix_design and hasattr(obj.mix_design, 'design_name'):
+            # Formats your existing design name string clean
+            return f"ORD {obj.mix_design.design_name}"
+        return "Standard RMC Mix"
 
 class ScheduleSerializer(serializers.ModelSerializer):
-    # Fixed: Redundant source='id' removed
     id = serializers.CharField(read_only=True)
     
     # Custom relational lookups
     order_id = serializers.IntegerField(source='order.id', read_only=True)
     project_name = serializers.CharField(source='order.project_name', read_only=True)
     project_location = serializers.CharField(source='order.project_location', read_only=True)
+    
+    # 🟢 Safe Method Fields to extract Customer Identity records
+    client_name = serializers.SerializerMethodField()
+    contact_number = serializers.SerializerMethodField()
     
     # Method fields and nested arrays
     date = serializers.SerializerMethodField()
@@ -331,21 +395,43 @@ class ScheduleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Schedule
-        # Fixed: Added all custom declarations here so they actually serialize to your frontend
+        # 🟢 Added your tracking fields directly here
         fields = [
             'id', 
             'order', 
             'order_id', 
             'project_name', 
             'project_location', 
+            'client_name',
+            'contact_number',
             'delivery_date', 
             'date', 
             'order_items', 
             'delivery_status'
         ]
 
+    def get_client_name(self, obj):
+        try:
+            # Safely navigate backward from order -> user -> customer_profile
+            user = obj.order.user
+            profile = getattr(user, 'customer_profile', None)
+            if profile and profile.contact_person:
+                return profile.contact_person
+            return getattr(obj.order, 'contact_person', user.get_full_name() if user else "Unknown Client")
+        except AttributeError:
+            return "Unknown Client"
+
+    def get_contact_number(self, obj):
+        try:
+            user = obj.order.user
+            profile = getattr(user, 'customer_profile', None)
+            if profile and profile.contact_number:
+                return profile.contact_number
+            return "No Contact #"
+        except AttributeError:
+            return "No Contact #"
+
     def get_date(self, obj):
-        # Explicitly formats the date field to YYYY-MM-DD string format
         if obj.delivery_date:
             return obj.delivery_date.strftime('%Y-%m-%d')
         return None
