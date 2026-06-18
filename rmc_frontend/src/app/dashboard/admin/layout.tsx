@@ -107,7 +107,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <ShieldCheck className="text-slate-900 w-5 h-5" />
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold tracking-tight text-base uppercase leading-none">Aeron Ops</span>
+              <span className="font-extrabold tracking-tight text-base uppercase leading-none">LCRMCC Ops</span>
               <span className="text-[10px] text-cyan-400 font-semibold tracking-widest uppercase mt-0.5">Control Center</span>
             </div>
           </div>

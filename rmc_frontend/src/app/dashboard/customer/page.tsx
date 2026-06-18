@@ -1566,7 +1566,7 @@ export default function CustomerDashboard() {
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-       <p className="font-mono text-xs animate-pulse tracking-[0.5em] text-gray-400 uppercase">Synchronizing Aeron RMC Data...</p>
+       <p className="font-mono text-xs animate-pulse tracking-[0.5em] text-gray-400 uppercase">Synchronizing LCRMCC Data...</p>
     </div>
   );
 
@@ -1587,7 +1587,7 @@ export default function CustomerDashboard() {
       )}
 
       <nav className="bg-[#064e3b] text-white p-4 flex justify-between items-center shadow-lg sticky top-0 z-10">
-        <h1 className="text-xl font-black italic tracking-tighter">AERON<span className="text-[#d4af37]">RMC</span></h1>
+        <h1 className="text-xl font-black italic tracking-tighter">LCRMCC<span className="text-[#d4af37]">Vault</span></h1>
         <div className="flex items-center gap-6 text-xs font-bold uppercase tracking-widest">
           <span className="hidden md:inline text-white/60">Portal: <span className="text-white">{user?.full_name}</span></span>
           <button 

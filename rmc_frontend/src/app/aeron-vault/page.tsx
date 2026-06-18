@@ -43,7 +43,7 @@ export default function AdminSecretLogin() {
             <ShieldCheck className="text-cyan-400 w-8 h-8" />
           </div>
           <h1 className="text-white text-2xl font-black uppercase tracking-tighter">
-            Aeron <span className="text-cyan-400">Vault</span>
+            LC<span className="text-cyan-400">RMC</span> <span className="text-cyan-400">Vault</span>
           </h1>
           <p className="text-gray-500 text-xs font-mono mt-2 uppercase tracking-widest">
             Restricted Personnel Only

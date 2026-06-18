@@ -266,7 +266,6 @@ class OrderSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True, source='payment_set')
     order_items = OrderItemSerializer(many=True)
     quotation = QuotationSerializer(read_only=True)
-
     site_inspection = SiteInspectionSerializer(read_only=True, source='site_visit_report')
 
     class Meta:
@@ -291,77 +290,36 @@ class OrderSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        # 1. Pop nested order items array out
         items_data = validated_data.pop('order_items')
-        validated_data.pop('user', None) 
         
+        # 2. Extract out any fields explicit values will conflict with 
+        validated_data.pop('user', None)
+        validated_data.pop('company_name', None)
+        validated_data.pop('contact_person', None)
+        
+        # 3. Pull user contexts from request profile snapshots
         user = self.context['request'].user
         profile = getattr(user, 'customer_profile', None)
 
+        # 4. Fallback resolution rules
+        company_fallback = profile.company_name if profile else "N/A"
+        contact_fallback = profile.contact_person if profile else user.get_full_name()
+
         with transaction.atomic():
+            # 5. Create Order safely using explicit arguments alongside remaining model items
             order = Order.objects.create(
                 user=user,
-                company_name=profile.company_name if profile else "N/A",
-                contact_person=profile.contact_person if profile else user.get_full_name(),
+                company_name=company_fallback,
+                contact_person=contact_fallback,
                 **validated_data
             )
+            
+            # 6. Build the underlying ordered batch configurations
             for item_data in items_data:
                 OrderItem.objects.create(order=order, **item_data)
+                
         return order
-    
-    
-
-# class DispatchMixDesignSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = MixDesign
-#         fields = ['design_name']
-
-# class DispatchOrderItemSerializer(serializers.ModelSerializer):
-#     mix_design = DispatchMixDesignSerializer(read_only=True)
-    
-#     class Meta:
-#         model = OrderItem
-#         fields = ['volume', 'mix_design']
-
-# class ScheduleSerializer(serializers.ModelSerializer):
-#     # Fixed: Redundant source='id' removed
-#     id = serializers.CharField(read_only=True)
-    
-#     # Custom relational lookups
-#     order_id = serializers.IntegerField(source='order.id', read_only=True)
-#     project_name = serializers.CharField(source='order.project_name', read_only=True)
-#     project_location = serializers.CharField(source='order.project_location', read_only=True)
-    
-#     # Method fields and nested arrays
-#     date = serializers.SerializerMethodField()
-#     order_items = DispatchOrderItemSerializer(source='order.order_items', many=True, read_only=True)
-#     delivery_status = serializers.SerializerMethodField()
-
-#     class Meta:
-#         model = Schedule
-#         # Fixed: Added all custom declarations here so they actually serialize to your frontend
-#         fields = [
-#             'id', 
-#             'order', 
-#             'order_id', 
-#             'project_name', 
-#             'project_location', 
-#             'delivery_date', 
-#             'date', 
-#             'order_items', 
-#             'delivery_status'
-#         ]
-
-#     def get_date(self, obj):
-#         # Explicitly formats the date field to YYYY-MM-DD string format
-#         if obj.delivery_date:
-#             return obj.delivery_date.strftime('%Y-%m-%d')
-#         return None
-
-#     def get_delivery_status(self, obj):
-#         try:
-#             return obj.order.delivery.status
-#         except AttributeError:
-#             return "Pending Dispatch"
 
 class DispatchMixDesignSerializer(serializers.ModelSerializer):
     class Meta:

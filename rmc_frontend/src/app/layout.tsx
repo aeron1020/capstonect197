@@ -26,7 +26,7 @@
 //           <div className="max-w-4xl mx-auto px-4 h-full flex items-center justify-between">
 //             {/* Logo */}
 //             <div className="text-xl font-bold tracking-tight text-[#064e3b]">
-//               AERON<span className="text-[#d4af37]">RMC</span>
+//               LCRMC<span className="text-[#d4af37]">Vault</span>
 //             </div>
             
 //             {/* Simple Icons/Links */}
@@ -58,7 +58,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AERON RMC | Management System",
+  title: "LCRMC | Management System",
   description: "Concrete Ordering and Quotation System",
 };
 

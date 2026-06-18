@@ -23,7 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     checkAuth();
   }, [router]);
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50">Loading AERON RMC...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50">Loading LCRMC...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50">

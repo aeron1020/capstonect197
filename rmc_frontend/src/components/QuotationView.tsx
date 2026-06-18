@@ -1248,7 +1248,7 @@ export default function QuotationView({ data, orderData }: QuotationProps) {
         {/* HEADER SECTION */}
         <div className="flex justify-between items-start mb-8 border-b border-black pb-4">
           <div>
-            <h1 className="heading-font text-2xl font-bold tracking-tight text-[#064e3b]">AERON RMC</h1>
+            <h1 className="heading-font text-2xl font-bold tracking-tight text-[#064e3b]">LCRMCC</h1>
             <p className="text-[9px] uppercase tracking-[0.2em] font-sans font-bold text-gray-500">
               Ready-Mixed Concrete Specialist
             </p>

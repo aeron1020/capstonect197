@@ -23,7 +23,7 @@ export default function Navbar({ user }: NavbarProps) {
       <div className="max-w-7xl mx-auto flex justify-between items-center">
         <div className="flex items-center gap-8">
           <h1 className="text-xl font-bold tracking-tighter">
-            AERON<span className="text-[#d4af37]">RMC</span>
+            LCRMC<span className="text-[#d4af37]">Vault</span>
           </h1>
           
           {/* Role-Based Links */}

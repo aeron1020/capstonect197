@@ -1081,7 +1081,7 @@ export default function QuotationEditor({ order, onUpdate }: { order: any, onUpd
           <div class="canvas">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #000; padding-bottom: 16px; margin-bottom: 32px;">
               <div>
-                <h1 class="heading-font" style="font-size: 24px; font-weight: bold; color: #064e3b; margin: 0;">AERON RMC</h1>
+                <h1 class="heading-font" style="font-size: 24px; font-weight: bold; color: #064e3b; margin: 0;">LCRMCC</h1>
                 <p class="font-sans" style="font-size: 9px; uppercase; font-weight: bold; color: #6b7280; letter-spacing: 0.2em; margin: 4px 0 0 0;">READY-MIXED CONCRETE SPECIALIST</p>
                 <div class="font-sans" style="margin-top: 8px; font-size: 10px; color: #4b5563; line-height: 1.4;">
                   <p style="margin:0;">Villasis Plant Operation Office, Pangasinan</p>
