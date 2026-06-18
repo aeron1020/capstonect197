@@ -255,12 +255,19 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['id', 'mix_design', 'mix_design_name', 'volume']
 
+class SiteInspectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteInspection
+        fields = ['id', 'result', 'remarks', 'inspected_at']
+
 
 class OrderSerializer(serializers.ModelSerializer):
     # Backward relation mapping payment snapshots dynamically to the step panel tracking views
     payments = PaymentSerializer(many=True, read_only=True, source='payment_set')
     order_items = OrderItemSerializer(many=True)
     quotation = QuotationSerializer(read_only=True)
+
+    site_inspection = SiteInspectionSerializer(read_only=True, source='site_visit_report')
 
     class Meta:
         model = Order
