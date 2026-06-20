@@ -268,6 +268,8 @@ class OrderSerializer(serializers.ModelSerializer):
     quotation = QuotationSerializer(read_only=True)
     site_inspection = SiteInspectionSerializer(read_only=True, source='site_visit_report')
 
+    canceled_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Order
         fields = '__all__'
@@ -278,8 +280,15 @@ class OrderSerializer(serializers.ModelSerializer):
             'company_address', 
             'contact_person',
             'payment_term', 
-            'payment_status'
+            'payment_status',
+            'cancellation_reason',
+            'cancellation_date',
         ]
+
+    def get_canceled_by_name(self, obj):
+        if obj.canceled_by:
+            return obj.canceled_by.username
+        return None
 
     def validate_order_items(self, value):
         """
@@ -402,6 +411,9 @@ class ScheduleSerializer(serializers.ModelSerializer):
         return None
 
     def get_delivery_status(self, obj):
+        # 🟢 Check order cancellation status first
+        if obj.order.status in ["Cancelled", "Canceled"]:
+            return "Cancelled"
         try:
             return obj.order.delivery.status
         except AttributeError:

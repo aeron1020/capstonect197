@@ -48,12 +48,23 @@ class Order(models.Model):
     distance_km = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     proposed_schedule = models.DateField()
     status = models.CharField(max_length=50, default="Pending")
+
+    cancellation_reason = models.TextField(blank=True, null=True)
+    cancellation_date = models.DateTimeField(blank=True, null=True)
+    canceled_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        blank=True, 
+        null=True, 
+        related_name='cancelled_orders'
+    )
     
     # Cleaned: Combined these fields at the bottom
     payment_term = models.CharField(max_length=20, choices=PAYMENT_TERM_CHOICES, default='COD', null=True, blank=True)
     payment_type = models.CharField(max_length=20, null=True, blank=True) # General type if needed
     payment_status = models.CharField(max_length=20, default="Pending")
     created_at = models.DateTimeField(auto_now_add=True)
+    
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="order_items", on_delete=models.CASCADE)
