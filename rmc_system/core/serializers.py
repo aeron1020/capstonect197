@@ -359,6 +359,7 @@ class ScheduleSerializer(serializers.ModelSerializer):
     project_location = serializers.CharField(source='order.project_location', read_only=True)
     
     # 🟢 Safe Method Fields to extract Customer Identity records
+    company_name = serializers.CharField(source='order.company_name', read_only=True)
     client_name = serializers.SerializerMethodField()
     contact_number = serializers.SerializerMethodField()
     
@@ -375,7 +376,8 @@ class ScheduleSerializer(serializers.ModelSerializer):
             'order', 
             'order_id', 
             'project_name', 
-            'project_location', 
+            'project_location',
+            'company_name', 
             'client_name',
             'contact_number',
             'delivery_date', 

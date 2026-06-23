@@ -785,12 +785,14 @@ import { useState, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar, Clock, 
   RefreshCw, InfoIcon, MapPin, ShieldAlert, X, FileText, Layers, HardHat, User, Phone,
-  XCircle
+  XCircle,
+  Building
 } from 'lucide-react';
 import api from '@/src/lib/api';
 
 interface LiveEventItem {
   id: string;
+  companyName: string;
   projectName: string;
   projectLocation: string;
   clientName: string;      
@@ -878,6 +880,7 @@ export default function ReusableCalendarView() {
 
         return {
           id: `ORD-${item.order_id || item.order?.id || item.id}`,
+          companyName: item.company_name || item.order?.company_name || "Unknown Company",
           projectName: cleanProjectName,
           projectLocation: cleanLocation,
           clientName: cleanClient,
@@ -950,16 +953,6 @@ export default function ReusableCalendarView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-          <span className="text-[9px] font-black tracking-wider uppercase px-2.5 py-1.5 rounded-lg bg-slate-100 border text-slate-600 flex items-center gap-1 mr-2">
-            <ShieldAlert className="w-3 h-3 text-cyan-500" /> Mode: {userRole}
-          </span>
-
-          <button
-            onClick={triggerManualSync}
-            className="p-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-cyan-600 transition-colors flex items-center justify-center"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
 
           <div className="flex border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
             <button onClick={handlePrevMonth} className="p-2.5 hover:bg-gray-100 transition-colors text-slate-600">
@@ -1042,6 +1035,9 @@ export default function ReusableCalendarView() {
                         }`}
                       >
                         <p className={`text-[10px] font-black tracking-tight truncate uppercase leading-tight mb-0.5 ${event.status === 'Cancelled' ? 'line-through decoration-rose-500 decoration-2 text-slate-400' : ''}`}>
+                          {event.companyName}
+                        </p>
+                        <p className={`text-[10px] font-black tracking-tight truncate uppercase leading-tight mb-0.5 ${event.status === 'Cancelled' ? 'line-through decoration-rose-500 decoration-2 text-slate-400' : ''}`}>
                           {event.projectName}
                         </p>
                         
@@ -1095,6 +1091,15 @@ export default function ReusableCalendarView() {
 
             {/* Main Job Metric Details */}
             <div className="space-y-3.5">
+
+               {/* 0. Company Name */}
+              <div className={`flex items-start gap-3 p-3 rounded-2xl border ${selectedEvent.status === 'Cancelled' ? 'bg-rose-50/30 border-rose-100' : 'bg-slate-50/80 border-slate-100'}`}>
+                <Building className={`w-5 h-5 mt-0.5 shrink-0 ${selectedEvent.status === 'Cancelled' ? 'text-rose-600' : 'text-slate-700'}`} />
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Company Name</p>
+                  <p className={`font-extrabold text-sm uppercase leading-snug ${selectedEvent.status === 'Cancelled' ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{selectedEvent.companyName}</p>
+                </div>
+              </div>
               
               {/* 1. Project Name */}
               <div className={`flex items-start gap-3 p-3 rounded-2xl border ${selectedEvent.status === 'Cancelled' ? 'bg-rose-50/30 border-rose-100' : 'bg-slate-50/80 border-slate-100'}`}>
