@@ -596,7 +596,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     api.get('orders/')
       .then(res => {
-        const data = res.data || [];
+        const payload = res.data as any;
+        const data = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.results)
+          ? payload.results
+          : Array.isArray(payload?.orders)
+          ? payload.orders
+          : [];
+
         setOrders(data);
         
         // Compute base workflow KPIs across active operational scopes
@@ -605,6 +613,10 @@ export default function AdminDashboard() {
           paymentPendingCount: data.filter((o: Order) => o.status === 'For Payment Verification' && !o.is_archived).length,
           totalCount: data.filter((o: Order) => !o.is_archived).length
         });
+
+        if (!Array.isArray(payload)) {
+          console.warn('Normalized admin orders response to array:', payload);
+        }
       })
       .catch(err => console.error("Error reading order pipeline:", err));
   }, []);

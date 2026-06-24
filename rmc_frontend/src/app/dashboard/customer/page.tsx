@@ -1430,10 +1430,24 @@ export default function CustomerDashboard() {
           router.push('/login');
           return;
         }
+
+        const payload = ordersRes.data as any;
+        const normalizedOrders = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.results)
+          ? payload.results
+          : Array.isArray(payload?.orders)
+          ? payload.orders
+          : [];
+
         setUser(profileRes.data);
-        setOrders(ordersRes.data);
+        setOrders(normalizedOrders);
+
+        if (!Array.isArray(payload)) {
+          console.warn('Normalized orders response to array:', payload);
+        }
       } catch (err) {
-        console.error("Dashboard Fetch Error:", err);
+        console.error('Dashboard Fetch Error:', err);
         router.push('/login');
       } finally {
         setIsLoading(false);

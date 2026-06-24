@@ -399,7 +399,20 @@ export default function DispatcherDashboard() {
     try {
       const response = await axios.get(`${API_BASE_URL}/schedules/`, { headers: getAuthHeaders() });
       
-      const mappedData: DeliveryItem[] = response.data.map((item: any) => {
+      const payload = response.data as any;
+      const items = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.results)
+        ? payload.results
+        : Array.isArray(payload?.schedules)
+        ? payload.schedules
+        : [];
+
+      if (!Array.isArray(payload)) {
+        console.warn('Normalized schedules response to array:', payload);
+      }
+
+      const mappedData: DeliveryItem[] = items.map((item: any) => {
         const firstItem = item.order_items?.[0];
         const computedVolume = firstItem ? parseFloat(firstItem.volume) : 0;
         

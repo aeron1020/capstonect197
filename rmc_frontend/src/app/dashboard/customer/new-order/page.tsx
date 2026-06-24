@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/src/lib/api';
+import logger from '@/src/lib/logger';
 import { PlusCircle, Trash2, ArrowLeft, Info, HelpCircle, CheckSquare } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -28,9 +29,42 @@ export default function NewOrder() {
   ]);
 
   useEffect(() => {
-    api.get('mix-designs/')
-      .then(res => setMixes(res.data))
-      .catch(err => console.error("Error fetching mixes:", err));
+    let cancelled = false;
+
+    const fetchAllMixes = async () => {
+      try {
+        let url: string | null = 'mix-designs/';
+        const accum: MixDesign[] = [];
+
+        while (url && !cancelled) {
+          const res = await api.get(url);
+          const payload = res.data as any;
+
+          const items: MixDesign[] = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.results)
+            ? payload.results
+            : Array.isArray(payload?.mix_designs)
+            ? payload.mix_designs
+            : [];
+
+          accum.push(...items);
+
+          // DRF pagination uses `next` for pagination links
+          url = payload?.next ?? null;
+        }
+
+        // Deduplicate by id just in case
+        const unique = Array.from(new Map(accum.map((m: any) => [m.id, m])).values());
+        if (!cancelled) setMixes(unique);
+      } catch (err) {
+        logger.error('Error fetching mixes:', err);
+      }
+    };
+
+    fetchAllMixes();
+
+    return () => { cancelled = true; };
   }, []);
 
   const handleAddItem = () => {

@@ -836,7 +836,20 @@ export default function ReusableCalendarView() {
     try {
       const response = await api.get('schedules/');
 
-      const mappedEvents: LiveEventItem[] = response.data.map((item: any) => {
+      const payload = response.data as any;
+      const items = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.results)
+        ? payload.results
+        : Array.isArray(payload?.schedules)
+        ? payload.schedules
+        : [];
+
+      if (!Array.isArray(payload)) {
+        console.warn('Normalized schedules response to array (CalendarView):', payload);
+      }
+
+      const mappedEvents: LiveEventItem[] = items.map((item: any) => {
         const firstItem = item.order_items?.[0];
         const volumeNum = firstItem ? parseFloat(firstItem.volume) : 0;
         

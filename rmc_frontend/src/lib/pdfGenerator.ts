@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import logger from './logger';
 
 export const generateQuotationPDF = async (elementId: string, orderId: string) => {
   const element = document.getElementById(elementId);
@@ -15,7 +16,7 @@ export const generateQuotationPDF = async (elementId: string, orderId: string) =
       useCORS: true,
       backgroundColor: "#ffffff",
     });
-
+    
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
     
@@ -25,7 +26,7 @@ export const generateQuotationPDF = async (elementId: string, orderId: string) =
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
     pdf.save(`QUOTATION-#${orderId}.pdf`);
   } catch (error) {
-    console.error("PDF generation failed", error);
+    logger.error("PDF generation failed", error);
   } finally {
     element.style.boxShadow = originalStyle;
   }
